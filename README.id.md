@@ -12,7 +12,7 @@ input. Tidak ada emulator di dalamnya.
 > NTSC/USA milik sendiri.
 
 Dokumentasi lengkap (Inggris): [README.md](README.md)
-Panduan langkah demi langkah untuk penguji (tanpa compiler): [docs/INSTALL-FOR-TESTERS.md](docs/INSTALL-FOR-TESTERS.md)
+Panduan langkah demi langkah untuk penguji (tanpa compiler): [docs/INSTALL-FOR-TESTERS.id.md](docs/INSTALL-FOR-TESTERS.id.md)
 
 ## Status
 

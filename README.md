@@ -22,7 +22,7 @@ input. No emulator is involved at runtime.
 - [What the port covers](#what-the-port-covers)
 - [Status](#status)
 - [Requirements](#requirements)
-- [Playing a release build](#playing-a-release-build)
+- [Playing a release build](#playing-a-release-build) (step-by-step: [tester guide](docs/INSTALL-FOR-TESTERS.md))
 - [Launcher](#launcher)
 - [Game data](#game-data)
 - [Building from source](#building-from-source)
@@ -107,6 +107,9 @@ TheWarriors/
 4. The first launch compiles the game's code from your `default.xbe`. It takes 1.5–4 minutes depending on the CPU and
    happens once per release. Later launches go straight to the game.
 5. Press **F10** in game for display, mouse, key binding and controller settings.
+
+A step-by-step version for first-time testers, including failure cases and what to attach in a report, is in
+[docs/INSTALL-FOR-TESTERS.md](docs/INSTALL-FOR-TESTERS.md).
 
 ## Launcher
 

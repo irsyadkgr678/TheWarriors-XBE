@@ -1,23 +1,23 @@
-# Panduan untuk penguji
+# Tester guide
 
-Dokumen ini ditulis untuk orang yang belum pernah menyentuh proyek ini. Tidak perlu compiler, tidak perlu akun
-GitHub, tidak perlu internet setelah unduhan selesai.
+Written for someone who has never seen this project. No compiler, no GitHub account, no internet needed after the
+download finishes.
 
-## Yang perlu kamu siapkan
+## What you need
 
-1. **Windows 10 atau 11, 64-bit.** Windows 32-bit tidak bisa.
-2. **GPU yang mendukung Direct3D 12.** Kurang lebih NVIDIA GTX 600 ke atas, AMD HD 7000 ke atas, atau Intel HD 4200
-   (Haswell) ke atas. Cara cepat memeriksa: tekan `Win+R`, tulis `dxdiag`, buka tab **Display**, lihat **Feature
-   Levels**. Harus ada `11_0`, `11_1`, `12_0`, atau `12_1`.
-3. **Disc Xbox NTSC/USA milikmu sendiri**, dalam bentuk satu file `.iso`. Versi PS2 dan PSP tidak bisa dipakai.
-   Ukuran ISO sekitar 5 GB; ini tidak perlu diekstrak.
+1. **Windows 10 or 11, 64-bit.** 32-bit Windows will not work.
+2. **A GPU with Direct3D 12 support.** Roughly NVIDIA GTX 600 or newer, AMD HD 7000 or newer, or Intel HD 4200
+   (Haswell) or newer. Quick check: press `Win+R`, type `dxdiag`, open the **Display** tab and look at **Feature
+   Levels**. It must list `11_0`, `11_1`, `12_0` or `12_1`.
+3. **Your own Xbox NTSC/USA disc**, as a single `.iso` file. The PS2 and PSP versions are not supported. The image is
+   about 5 GB and does not need to be extracted.
 
-## Langkah instalasi
+## Installation
 
-1. **Unduh** `TheWarriors-port-v0.1.0-alpha.zip` (sekitar 59 MB).
-2. **Ekstrak** ke folder baru yang bisa ditulis, misalnya `D:\Games\TheWarriors`. Jangan di `C:\Program Files`,
-   dan jangan jalankan langsung dari dalam zip.
-3. **Taruh ISO** di dalam folder `assets`. Hasilnya seperti ini:
+1. **Download** `TheWarriors-port-v0.1.0-alpha.zip` (about 59 MB).
+2. **Extract** it to a new folder you can write to, for example `D:\Games\TheWarriors`. Avoid `C:\Program Files`, and
+   do not run anything from inside the archive.
+3. **Put the ISO** in the `assets` folder. The result looks like this:
 
    ```
    TheWarriors\
@@ -25,54 +25,54 @@ GitHub, tidak perlu internet setelah unduhan selesai.
      TheWarriors.exe
      compiler\
      assets\
-       TheWarriors.iso      <- ISO milikmu, nama file bebas
+       TheWarriors.iso      <- your ISO, any filename
    ```
 
-4. **Jalankan `TheWarriorsLauncher.exe`.**
-   Kalau ISO tidak ada di `assets\`, buka tab **Folder game**, pilih folder tempat ISO disimpan, lalu kembali ke
-   tab **Grafik** kalau perlu mengatur resolusi.
-5. **Tekan MAINKAN.**
-   Peluncuran pertama akan mengompilasi kode game dari ISO milikmu. Muncul jendela progres, waktunya sekitar 2–4
-   menit tergantung CPU. Ini terjadi sekali; setelah itu game langsung terbuka.
-6. Di dalam game, tekan **F10** untuk pengaturan display, sensitivitas mouse, key binding, dan controller.
+4. **Run `TheWarriorsLauncher.exe`.**
+   If the ISO is somewhere else, open the **Game files** tab, point it at that folder, and use the **Graphics** tab if
+   you want to change resolution or render scale.
+5. **Press Play.**
+   The first launch compiles the game's code from your ISO. A progress window appears; it takes about 2–4 minutes
+   depending on the CPU. This happens once per release, after which the game starts directly.
+6. In game, press **F10** for display settings, mouse sensitivity, key bindings and controller options.
 
-## Kontrol awal
+## Default controls
 
-| Aksi | Key |
+| Action | Key |
 |---|---|
-| Jalan | W A S D |
-| Kamera | mouse |
-| Serang ringan / berat | klik kiri / klik kanan |
-| Grab / lempar | E atau Backspace |
-| Aksi (lompat, panjat) | Space |
+| Move | W A S D |
+| Camera | mouse |
+| Light / heavy attack | left mouse / right mouse |
+| Grab / throw | E or Backspace |
+| Action (jump, climb) | Space |
 | Sprint | Left Shift |
 | Pause | Esc |
 
-Semua bisa diubah di launcher atau di panel F10.
+Everything can be rebound in the launcher or in the F10 panel.
 
-## Kalau gagal
+## If it does not work
 
-| Yang terlihat | Artinya |
+| What you see | What it means |
 |---|---|
-| `Put the game in the assets folder` | ISO belum ada, masih di dalam zip, atau letaknya satu folder terlalu dalam |
-| `...is a different release of the game` | ISO bukan NTSC/USA retail; build ini tidak mendukung versi lain |
-| Jendela tertutup sekitar 0,4 detik setelah dibuka | folder `assets` berisi `default.xbe` lepas tanpa file WAD. Hapus, sisakan ISO saja |
-| Kompilasi pertama gagal | antivirus mengarantina `compiler\clang.exe` atau `lld-link.exe`. Kembalikan file itu, lalu tambahkan folder game ke exclusion antivirus |
-| Layar hitam | perbarui driver GPU; di laptop dua GPU, paksa `TheWarriors.exe` memakai GPU diskrit |
-| Tidak ada suara | set perangkat audio yang diinginkan sebagai default Windows sebelum memulai |
+| `Put the game in the assets folder` | No ISO found: it is still inside an archive, or the folder is one level too deep |
+| `...is a different release of the game` | The ISO is not the NTSC/USA retail release; this build does not support other regions |
+| Window closes about 0.4 s after opening | `assets` contains a loose `default.xbe` without the WAD files. Delete it and keep the ISO only |
+| The first compile fails | Antivirus quarantined `compiler\clang.exe` or `lld-link.exe`. Restore them and exclude the game folder |
+| Black screen | Update the GPU driver. On dual-GPU laptops, force `TheWarriors.exe` onto the discrete GPU |
+| No sound | Set the intended playback device as the Windows default before starting |
 
-## Kalau mau melaporkan masalah
+## Reporting a problem
 
-Kirimkan tiga hal ini:
+Send these three things:
 
-1. Isi `logs\TheWarriors.log` (kalau crash, ambil 50 baris terakhir).
-2. File terbaru di `CrashDumps\`, kalau ada.
-3. CPU, GPU, dan RAM.
+1. `logs/TheWarriors.log` (if it crashed, the last 50 lines are enough).
+2. The newest file in `CrashDumps/`, if there is one.
+3. CPU, GPU and RAM.
 
-Jangan lampirkan ISO, file game, atau `TheWarriors.dll` saat melapor.
+Do not attach the ISO, game files, or `TheWarriors.dll`.
 
-## Yang perlu diketahui sebelum mencoba
+## What to expect
 
-Ini build alpha. Yang sudah berjalan: boot, menu, gameplay, renderer Direct3D 12, audio, mouse dan keyboard,
-gamepad. Yang belum ada: MSAA, output 720p, dan System Link. Misi lanjut belum diuji tuntas, jadi crash di tengah
-permainan masih mungkin terjadi.
+This is an alpha build. Working: boot, menus, gameplay, Direct3D 12 rendering, audio, mouse and keyboard, gamepads.
+Not implemented: MSAA, 720p output, System Link. Later missions are untested, so crashes during gameplay are still
+possible.
