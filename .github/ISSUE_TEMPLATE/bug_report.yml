@@ -14,7 +14,7 @@ body:
     attributes:
       label: Build
       description: Release tag or commit you are running.
-      placeholder: v1.0-alpha
+      placeholder: v0.1.0-alpha
     validations:
       required: true
   - type: textarea

@@ -5,7 +5,7 @@ setlocal
 cd /d "%~dp0"
 set "OUT=out\build\release"
 set "STAGE=out\package"
-set "NAME=TheWarriors-port-v1.0.zip"
+set "NAME=TheWarriors-port-v0.1.0-alpha.zip"
 
 if not exist "%OUT%\TheWarriors.exe" (
     echo Belum ada build. Jalankan build-here.bat dulu.
@@ -39,6 +39,7 @@ for %%f in (msvcp140.dll vcruntime140.dll vcruntime140_1.dll) do (
 )
 
 copy /y README.md "%STAGE%" >nul
+if exist README.id.md copy /y README.id.md "%STAGE%" >nul
 copy /y THIRD_PARTY.md "%STAGE%" >nul
 copy /y LICENSE "%STAGE%" >nul
 rem folder assets harus tetap ada di zip (zip tidak menyimpan folder kosong):

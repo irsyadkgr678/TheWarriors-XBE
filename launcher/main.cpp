@@ -38,7 +38,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
 
 namespace {
 
-const char* kVersion = "1.0";
+const char* kVersion = "0.1.0";
 const char* kDisplayModes[] = {"fullscreen", "borderless", "windowed"};
 const uint32_t kAnisoValues[] = {0, 1, 2, 4, 8, 16};
 const char* kAnisoNames[] = {"Game default", "1x", "2x", "4x", "8x", "16x"};
