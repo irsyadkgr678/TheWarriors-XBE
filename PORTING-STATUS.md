@@ -1,119 +1,101 @@
-# PORTING STATUS — The Warriors (Xbox NTSC) → PC
+# Bring-up notes
 
-Status nyata per build terakhir: game **boot, inisialisasi audio, dan mouse+keyboard bekerja**.
-XBE: `default.xbe` NTSC/USA, SHA-1 `fe246a74501cd10d2ce89ca5dbda5080d2b2edcc`.
+Technical record of what was changed to get The Warriors running, and what is still open. Written for whoever
+maintains the port next.
 
-## 1. Cara menjalankan (penting)
+Target: `default.xbe`, NTSC/USA retail, SHA-1 `fe246a74501cd10d2ce89ca5dbda5080d2b2edcc`, title ID `0x5454009B`,
+XDK 5849.
 
-`assets\` harus **lengkap**:
+## 1. Build and run
 
-- **Opsi A (paling aman)** — taruh **hanya** ISO disc Xbox di `assets\`. Runtime me-mount ISO dan membaca semuanya
-  dari situ.
-- **Opsi B** — ekstrak seluruh isi ISO ke `assets\` (`default.xbe`, `audio\`, `bik\`, `Main.wad0..3`, `Paks.wad0..2`,
-  `System.wad0`, `XBoxWad.idx`).
-
-> **Jangan** hanya menaruh `default.xbe` sendirian di `assets\` sementara file WAD-nya tidak ada. Runtime memilih
-> folder (bukan ISO) begitu `default.xbe` ada di sana, lalu game tidak menemukan datanya dan mati dengan
-> `C0000005 write ... guest 00000000` sekitar 0,4 detik setelah boot. Ini penyebab crash yang paling menjebak saat
-> bring-up: crash-nya tampak seperti bug recompiler, padahal isi folder yang tidak lengkap.
-
-Keduanya boleh ada sekaligus selama foldernya lengkap (folder yang dipakai lebih dulu).
-
-## 2. Build
-
-```bat
-build-here.bat
+```
+build-here.bat                     -> out/build/release/TheWarriors.exe, .dll, TheWarriorsLauncher.exe
+Play.bat                           -> starts the launcher
+assets/                            -> ISO or fully extracted game files
 ```
 
-Memakai `toolchain\` portabel (git/cmake/ninja) + Visual Studio 2022 Build Tools (clang 19, Windows SDK 10.0.26100).
-Hasil: `out\build\release\TheWarriors.exe` + `TheWarriors.dll`. Recompile penuh ~3 menit di mesin ini (128 partisi).
+A full recompile of the game code takes about 3 minutes here (128 partitions). The recompiler reports 179 of 243
+functions and 10 of 12 data symbols resolved by signature; the remainder is listed in section 5.
 
-## 3. Tambalan yang ada di repo ini
+## 2. Patches carried in this repository
 
-| Bagian | Isi |
+| Location | Change |
 |---|---|
-| `config/game.toml` | 19 simbol hasil temuan manual (`XPP_GamepadType = 0x40954C`, `D3DDevice_FlushVertexCache`, keluarga `IDirectSound*`), 1 `[[function]]` (`0x35637D`), 3 `[[hook]]` (kamera yaw/pitch, prompt glyph) |
-| `sdk/runtime/xdk/dsound.cpp` | lapisan DirectSound yang paham XACT (mix-in buffer, 3D voice data, envelope, stream pause/flush). Asli: `dsound.cpp.sdk-orig` |
-| `src/game/dsound.cpp` | hook method DirectSound konsol → objek host |
-| `src/game/d3d.cpp` | hook `D3DDevice_DrawIndexedVerticesUP` |
-| `src/game/kbm.cpp`, `kbm.h` | **mouse + keyboard**: tombol pad dipetakan ke key, mouse memutar kamera sendiri, rebind, sensitivitas |
-| `src/game/camera.cpp` | hook yaw/pitch stick kanan → mouse |
-| `src/game/prompts.cpp` | prompt tombol menampilkan key yang terpasang |
-| `src/game/lockpick.cpp`, `movies.cpp` | lock pick memakai mouse, logo boot bisa di-skip |
-| `src/game/menu.cpp` | panel **F10** (display, sensitivitas, rebind key, controller). Baris MSAA dihapus — renderer kita belum punya MSAA |
-| `src/common/apu_clock.cpp` | penghitung sampel MCPX di `0xFE80200C` yang dibaca XACT |
-| `src/common/game_info.cpp` | semua hook host disambungkan (load/save/window/message/ui/pad/rumble) |
-| `build.bat` | menyalin `msvcp140/vcruntime140*.dll` ke samping exe (STL 14.44 vs DLL sistem 14.28 = crash saat start) |
-| `sdk/runtime/kernel/{objects,threads}.cpp`, `kernel.h` | dikembalikan ke versi SDK yang terbukti boot (lihat bagian 4) |
-| `launcher/main.cpp` | **TheWarriorsLauncher.exe**: tab Grafik / Controller / Keyboard & Mouse / Game files, pemilih bahasa ID/EN, watermark, tombol PLAY |
-| `sdk/runtime/app/{app.h,settings.cpp}` + `game_files.cpp` | key `game_files` & `game_exe`; folder data game bisa di drive mana pun |
-| `Play.bat` | membuka launcher (fallback ke game langsung bila launcher tidak ada) |
+| `config/game.toml` | 19 symbol addresses found by hand, one `[[function]]` entry (`0x35637D`), three `[[hook]]` entries for camera yaw/pitch and the text parser's button glyph |
+| `sdk/runtime/xdk/dsound.cpp` | replaced with an implementation that models XACT: mix-in buffers, 3D voice data, envelopes, stream pause/flush |
+| `src/game/dsound.cpp` | hooks the console-side DirectSound methods so they never run against host objects |
+| `src/game/d3d.cpp` | `D3DDevice_DrawIndexedVerticesUP`, which the SDK has no version of |
+| `src/game/kbm.cpp`, `kbm.h`, `camera.cpp`, `prompts.cpp`, `menu.cpp`, `lockpick.cpp`, `movies.cpp` | keyboard and mouse layer, camera hooks, prompts, F10 panel |
+| `src/common/apu_clock.cpp` | commits and feeds the MCPX counter at `0xFE80200C`, which XACT reads directly |
+| `src/common/game_info.cpp` | wires every host hook: load/save, window, message, UI, pad, rumble, and the APU clock |
+| `build.bat` | copies the matching MSVC runtime DLLs next to the executable |
+| `sdk/runtime/kernel/{objects,threads}.cpp`, `kernel.h` | reverted to the previous waiter implementation (section 4) |
 
-## 3b. Launcher dan pemisahan game files
+## 3. Faults found during bring-up
 
-Launcher adalah executable terpisah (`TheWarriorsLauncher.exe`, ImGui + Direct3D 11) yang **menulis `settings.toml`
-yang sama** dengan yang dibaca game, lalu `CreateProcess` ke `TheWarriors.exe`. Tidak ada logika game di dalamnya, jadi
-kedua jalur (launcher atau F10 in-game) selalu konsisten.
+**Missing assets look like a code bug.** With only `default.xbe` present, the runtime selects that folder instead of
+mounting the ISO, the game fails to find its WAD files, and faults about 0.4 s after boot with
+`C0000005 write ... guest 00000000`. The same crash appears if an ISO is present but a stray `default.xbe` sits beside
+it. Fix: ISO only, or a complete extraction. This cost the most time; it is documented in the README.
 
-Key baru di `settings.toml`:
+**CRT mismatch.** The runtime is built against the toolset's STL headers (14.44), while the system `MSVCP140.dll` was
+14.28. The executable faulted inside `MSVCP140.dll` before writing a log. `build.bat` now copies the redistributable
+DLLs next to the executable, as the SDK's own releases do.
 
-| Key | Arti |
+**Unknown indirect call at boot.** The analysis missed `0x35637D`; the trap message names it. Adding
+`[[function]] at = 0x35637D` and rebuilding resolves it.
+
+**XACT reading the APU counter.** With audio initialised, the game faulted reading `0xFE80200C`. That page is not
+committed by default. `apu_clock.cpp` commits it and keeps a 48 kHz counter on a host thread; `game_info.cpp` runs it
+from the `loaded` hook.
+
+**Console DirectSound running on host objects.** Resolving the `IDirectSound*` symbols without hooks made the guest
+execute Microsoft's DirectSound code against host buffers, which read a bad pointer and faulted. The hooks in
+`src/game/dsound.cpp` intercept those methods and forward to the host implementation.
+
+## 4. SDK regression in the waiter implementation
+
+The newer XboxXBERecomp runtime replaces the global condition variable with per-object waiter lists (`Waiter`,
+`SignalChanged`, `Wake`). With that code the game stops immediately after the `D3D12 adapter` log line: no error, no
+frame, no further log output. Swapping in `kernel/objects.cpp`, `kernel/threads.cpp` and `kernel/kernel.h` from the
+port this project follows restores normal boot (`dsound: effects image` at ~18 s, input active at ~21 s). This is a
+runtime regression for this title, not a configuration problem. Re-test before updating the SDK.
+
+## 5. Remaining trap stubs
+
+`xbe_symbols` reports these unresolved; they trap if called:
+
+- Bink: `BinkDoFrame`, `BinkGetSummary`, `BinkNextFrame`, `BinkWait`. The title's own Bink code is in-image, so
+  playback works.
+- DirectSound: `IDirectSoundBuffer_SetOutputBuffer`, `SetPlayRegion`, `SetRolloffCurve`, `SetAllParameters`,
+  `SetFilter`, `SetEG`, `Pause`, `StopEx`, `IDirectSoundStream_SetEG`, `IDirectSound_CommitEffectData`,
+  `DownloadEffectsImage`, `GetEffectData`, `GetOutputLevels`, `SynchPlayback`, `CDirectSoundStream_AddRef/Release`.
+  Most are covered by the host implementation; the rest are unused in single player.
+- Networking: Winsock and XNet/XOnline exports, so System Link is not available.
+
+## 6. Open work
+
+- MSAA: the backend has no multisampled screen targets. Reworking the screen-sized targets is the prerequisite.
+- 720p: the SDK fork this project follows adds `app::Hdtv720p()` and reports 720p to the title. Not ported yet, so the
+  game stays at 480p.
+- System Link: needs the Winsock/XNet layer.
+- Long-run stability: tested through the opening missions only.
+
+## 7. Measurements
+
+Ryzen 5 150, integrated Radeon, 15.2 GB RAM:
+
+| Metric | Value |
 |---|---|
-| `game_files` | folder data game, absolut atau relatif terhadap exe. Kosong = `assets\` di samping/di atas exe seperti biasa |
-| `game_exe` | catatan launcher soal executable yang dijalankan (game mengabaikannya) |
+| Resident memory, menu | ~400 MB |
+| CPU, menu (60 FPS cap) | ~58% of one core |
+| Threads | 30 |
+| Recompiled game code | 129 translation units, ~15 MB DLL |
+| First-launch compile | 1.5–4 minutes |
+| Release archive | 59 MB (mostly clang and lld) |
 
-Urutan muat di `main.cpp`: `app::Load()` → `kGame.init()` → `FindGame()`; jadi `game_files` sudah terbaca sebelum
-pencarian aset. Sudah diuji: dengan `game_files` menunjuk folder lain (junction ke `assets`), log menulis
-`Game: default.xbe in D:\...\_testdata, sha1 fe246a74…` dan game boot normal.
+## 8. Credits
 
-Perilaku kalau folder yang ditunjuk tidak valid: `FindAssets()` menulis peringatan lalu jatuh kembali ke pencarian
-`assets\` biasa, jadi game tidak langsung mati.
-
-Launcher diuji dengan `--selftest` (baca `settings.toml`, tulis ulang, keluar tanpa jendela): seluruh key
-`[controller]`, `[keys]`, `[mouse]`, dan nilai grafik tetap utuh setelah round-trip.
-
-Bahasa antarmuka: pemilih **Indonesia / English** di kanan atas, disimpan sebagai `launcher_language` (`id`/`en`).
-Teks UI diambil dari tabel `kTr[]` di `launcher/main.cpp`, jadi menambah bahasa ketiga cukup menambah satu kolom.
-Diuji dengan tangkapan layar: baris kredit watermark berubah lebar 480 px (ID) → 444 px (EN), artinya pergantian
-bahasa benar-benar terjadi saat runtime, bukan hanya tersimpan.
-
-Watermark: judul "THE WARRIORS" samar di tengah (alpha 46) + baris kredit versi di kanan bawah, digambar ke draw list
-jendela panel tepat sebelum `End()`. Catatan: `GetForegroundDrawList()` dan overlay window terpisah **tidak** tampil
-kokoh di sini (tertutup jendela panel), jadi jangan dikembalikan ke cara itu tanpa diuji ulang.
-
-## 4. Regresi SDK yang menggantungkan boot
-
-SDK TGP482 yang lebih baru menulis ulang penungguan objek kernel (`Waiter`, daftar tunggu per objek, `SignalChanged`).
-Dengan versi itu, The Warriors **berhenti tepat setelah `D3D12 adapter`**: tanpa error, tanpa progres, tanpa audio.
-Mengganti `kernel/objects.cpp`, `kernel/threads.cpp`, dan `kernel/kernel.h` dengan versi fork upstream membuat boot
-lanjut normal (`dsound: effects image` ~18 s, `kbm` aktif ~21 s). Ini regresi, bukan kesalahan konfigurasi game.
-
-## 5. Kontrol default
-
-| Aksi | Key |
-|---|---|
-| Jalan | W A S D, Left Alt = walk |
-| Kamera | mouse |
-| Serang ringan (X) / berat (A) | Klik kiri / klik kanan, Enter |
-| Grab (B), aksi (Y) | E / Backspace, Space |
-| Sprint (LT), target (RT) | Left Shift, Q |
-| Block (Black), White | F, R |
-| Rage | Z |
-| Pause / Back | Esc / Tab |
-| Panel setting | F10 |
-
-Semua bisa di-rebind di F10; pengaturan tersimpan di `settings.toml` (bagian `[keys]`, `[mouse]`, `[controller]`).
-
-## 6. Sisa pekerjaan
-
-- MSAA belum ada (renderer lawas; baris di menu sengaja dihilangkan).
-- System Link (jaringan) belum: simbol Winsock/XNet masih trap, tidak dipakai single player.
-- 720p: `app::Hdtv720p()` belum di-porting, jadi game memakai 480p seperti TV standar.
-- Belum diuji menyeluruh: hanya boot + menu + beberapa menit berjalan.
-
-## 7. Kredit
-
-- [XboxXBERecomp](https://github.com/TGP482/XboxXBERecomp) — recompiler + runtime (MIT).
-- [Antriksh1984/TheWarriors-XBERecomp](https://github.com/Antriksh1984/TheWarriors-XBERecomp) — acuan alamat simbol,
-  hook DirectSound/D3D, APU clock, dan lapisan `kbm`/`camera`/`prompts`/`menu` untuk XBE NTSC yang sama.
-- XenonRecomp, Zydis, toml++, Dear ImGui, SDL3, LLVM.
+XboxXBERecomp by TGP482 (MIT) provides the recompiler and runtime. The symbol map, the DirectSound/D3D/APU hooks and
+the keyboard/mouse layer come from Antriksh1984's NTSC port; see [THIRD_PARTY.md](THIRD_PARTY.md) for the permission
+status.

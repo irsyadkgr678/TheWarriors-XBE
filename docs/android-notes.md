@@ -1,7 +1,8 @@
-# PANDUAN — The Warriors (Xbox classic) dengan XboxXBERecomp
+# Android notes (historical)
 
-> **Catatan:** dokumen ini mencatat eksperimen jalur **Android** dan bukan gambaran port PC-nya. Port PC yang jadi
-> ada di [README.md](README.md), dan catatan teknisnya di [PORTING-STATUS.md](PORTING-STATUS.md).
+> Catatan dari percobaan awal memindahkan proyek ini ke Android. Bukan bagian dari port PC dan tidak lagi
+> dipelihara. Port PC ada di [README.md](../README.md); catatan teknisnya di
+> [PORTING-STATUS.md](../PORTING-STATUS.md).
 
 Ditulis untuk pemula. Baca bagian 1 dulu, karena ada satu kenyataan teknis yang menentukan semuanya.
 

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Install and troubleshooting guide
+    url: https://github.com/irsyadkgr678/TheWarriors-XBE#troubleshooting
+    about: Startup problems, missing game data, black screen, low frame rate.
+  - name: The Warriors XBE Recomp (the NTSC port this build follows)
+    url: https://github.com/Antriksh1984/TheWarriors-XBERecomp
+    about: Symbol map, input and audio hooks for the same XBE originate there.
+  - name: XboxXBERecomp (recompiler and runtime)
+    url: https://github.com/TGP482/XboxXBERecomp
+    about: Issues with the recompiler or the host runtime itself.

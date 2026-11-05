@@ -1,0 +1,67 @@
+name: Bug report
+description: Crash, hang, rendering or audio problem
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports without a log are usually impossible to diagnose, so please fill in every field.
+
+        Do not attach game files, disc images, or the recompiled `TheWarriors.dll`.
+  - type: input
+    id: build
+    attributes:
+      label: Build
+      description: Release tag or commit you are running.
+      placeholder: v1.0-alpha
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what the game actually did.
+      placeholder: |
+        Menu -> Continue -> mission 3. The game froze during the first brawl; no crash dialog.
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Game data
+      description: How the game files are provided.
+      options:
+        - ISO file
+        - Extracted files
+    validations:
+      required: true
+  - type: textarea
+    id: system
+    attributes:
+      label: System
+      description: CPU, GPU and driver version, RAM, Windows build. The text from `dxdiag` covers all of it.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Last 50 lines of `logs/TheWarriors.log`, or attach the whole file.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: dump
+    attributes:
+      label: Crash dump
+      description: Name of the newest file in `CrashDumps/` if the game crashed. Attach it zipped.
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before submitting
+      options:
+        - label: I am not attaching game files, an ISO, or `TheWarriors.dll`.
+          required: true
+        - label: I am running the latest release and checked the troubleshooting section.
+          required: true

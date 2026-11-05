@@ -1,40 +1,43 @@
 # Third-party components
 
-This project stands on other people's work. Nothing here is redistributed as game data; the list below is what the
-source tree and the built executables contain, and who wrote it.
+This project builds on other people's work. This file records what is included, who wrote it, and under which license.
+No game data is distributed with any of it.
 
-## Recompiler, runtime SDK, hook framework
+## Recompiler, runtime and hook framework
 
 **[XboxXBERecomp](https://github.com/TGP482/XboxXBERecomp)** — TGP482 — MIT
-Vendored under [`sdk/`](sdk/). It provides `xbe_recomp`, `xbe_symbols`, the host runtime (kernel HLE, Direct3D 12
-backend, XAudio2 audio, DirectSound, XInput/SDL input), the XDK signature data under `sdk/xdk/`, and the CMake glue
-(`add_xbe_image`) this project's `CMakeLists.txt` uses.
-Its own third-party notices are in [`sdk/THIRD_PARTY.txt`](sdk/THIRD_PARTY.txt) — keep that file with any copy.
+
+Vendored under `sdk/`. It provides `xbe_recomp`, `xbe_symbols`, the host runtime (kernel HLE, Direct3D 12 backend,
+XAudio2 audio, DirectSound, input), the XDK signature data in `sdk/xdk/`, and the CMake function `add_xbe_image` used
+by this project's build. Its own notice file, `sdk/THIRD_PARTY.txt`, must stay with any copy.
 
 **[XenonRecomp](https://github.com/hedge-dev/XenonRecomp)** — hedge-dev — MIT
-Overridable function layout and instruction hooks, via the SDK.
 
-## Game-specific hooks, symbol map, and input layer
+Overridable function layout and instruction hooks, used through the SDK.
 
-**[Antriksh1984/TheWarriors-XBERecomp](https://github.com/Antriksh1984/TheWarriors-XBERecomp)** — Antriksh1984
-The NTSC port this repository was brought up against. The work taken from it:
+## Game-specific work
 
-- the hand-found symbol addresses in [`config/game.toml`](config/game.toml) (`XPP_GamepadType = 0x40954C`,
-  `D3DDevice_FlushVertexCache`, the `IDirectSound*` family) and the `[[function]]`/`[[hook]]` entries;
-- [`src/game/kbm.cpp`](src/game/kbm.cpp), [`kbm.h`](src/game/kbm.h), [`camera.cpp`](src/game/camera.cpp),
-  [`prompts.cpp`](src/game/prompts.cpp), [`menu.cpp`](src/game/menu.cpp), [`lockpick.cpp`](src/game/lockpick.cpp),
-  [`movies.cpp`](src/game/movies.cpp) — keyboard/mouse layer, camera hooks, button prompts, F10 panel;
-- [`src/game/dsound.cpp`](src/game/dsound.cpp), [`src/game/d3d.cpp`](src/game/d3d.cpp) and the DirectSound
-  implementation in [`sdk/runtime/xdk/dsound.cpp`](sdk/runtime/xdk/dsound.cpp) — the XACT audio path;
-- [`src/common/apu_clock.cpp`](src/common/apu_clock.cpp) and the APU sample counter at `0xFE80200C`.
+**[TheWarriors-XBERecomp](https://github.com/Antriksh1984/TheWarriors-XBERecomp)** — Antriksh1984
 
-> **Before publishing this repository, confirm with that author.** Their repository does not carry a plain MIT
-> license, so redistribution of those files should be agreed with them. The polite and safe route: open an issue or
-> send a message describing that the NTSC config and the input/audio hooks are reused here, credit them in the README,
-> and keep the link. If they decline, replace those files with your own implementation — the rest of the project
-> (launcher, build, docs, runtime fixes) stands on its own.
+The NTSC port this project was brought up against. The following parts originate there:
 
-## Libraries inside the executables
+| File | What it does |
+|---|---|
+| `config/game.toml` | hand-resolved symbol addresses (`XPP_GamepadType`, `D3DDevice_FlushVertexCache`, the `IDirectSound*` family), the `[[function]]` and `[[hook]]` entries |
+| `src/game/kbm.cpp`, `kbm.h` | keyboard and mouse layer: pad mapping, rebinding, mouse-look plumbing |
+| `src/game/camera.cpp` | camera hooks for mouse yaw and pitch |
+| `src/game/prompts.cpp` | button prompts that show the bound key |
+| `src/game/menu.cpp` | F10 settings panel |
+| `src/game/lockpick.cpp`, `movies.cpp` | mouse-driven lock pick, skippable boot movies |
+| `src/game/dsound.cpp`, `d3d.cpp` | DirectSound and `DrawIndexedVerticesUP` hooks |
+| `sdk/runtime/xdk/dsound.cpp` | DirectSound implementation covering XACT's requirements |
+| `src/common/apu_clock.cpp` | MCPX sample counter at `0xFE80200C` |
+
+**Permission status:** the upstream repository does not carry a plain MIT license, so these files are included here
+with attribution while permission is being confirmed with their author. Replace them with an independent
+implementation if that permission is not granted.
+
+## Libraries linked into the executables
 
 | Component | Author | License |
 |---|---|---|
@@ -44,11 +47,11 @@ The NTSC port this repository was brought up against. The work taken from it:
 | [SDL3](https://github.com/libsdl-org/SDL) | Sam Lantinga | zlib |
 | [LLVM](https://llvm.org/) (clang, lld) | LLVM Project | Apache-2.0 with LLVM exceptions |
 
-The release package carries `compiler/clang.exe`, `compiler/lld-link.exe`, and `compiler/LLVM-LICENSE.txt` so a player
-can build the game's code without installing Visual Studio. If you redistribute that folder, keep
-`LLVM-LICENSE.txt` beside it.
+Release archives include `compiler/clang.exe`, `compiler/lld-link.exe` and `compiler/LLVM-LICENSE.txt` so players can
+build the game's code without installing Visual Studio. Keep `LLVM-LICENSE.txt` with that folder if you redistribute
+it.
 
 ## The game
 
-*The Warriors* © 2005 Rockstar Games / Rockstar Toronto / Rockstar Leeds, published by Take-Two Interactive.
-This project is unofficial, unaffiliated, and not endorsed. It ships no game code, no game data, and no artwork.
+*The Warriors* © 2005 Rockstar Games / Rockstar Toronto / Rockstar Leeds, published by Take-Two Interactive. This
+project is unofficial, unaffiliated with the rights holders, and ships no game code, game data or artwork.

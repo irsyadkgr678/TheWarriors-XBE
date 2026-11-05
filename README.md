@@ -1,242 +1,246 @@
-# The Warriors — Xbox → PC (static recompilation)
+# The Warriors — native PC build (Xbox static recompilation)
 
-Port PC tidak resmi dari **The Warriors (Xbox original, 2005)**: kode x86 di dalam `default.xbe` diterjemahkan ke C++
-saat build, lalu dijalankan sebagai aplikasi Windows 64-bit native — **bukan emulator**. Gambar lewat Direct3D 12,
-suara lewat XAudio2, input lewat SDL3, plus launcher terpisah untuk grafik/controller/keyboard dan pemilihan folder
-data game.
+![status](https://img.shields.io/badge/status-alpha-orange)
+![platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-blue)
+![renderer](https://img.shields.io/badge/renderer-Direct3D%2012-informational)
+![license](https://img.shields.io/badge/license-MIT-green)
 
-> **Tidak ada data game di repositori ini.** Kamu harus memakai salinan Xbox NTSC/USA milikmu sendiri.
+An unofficial port of *The Warriors* (Xbox, 2005). The x86 code inside the game's `default.xbe` is translated to C++
+at build time and linked against a Windows runtime: Direct3D 12 for rendering, XAudio2 for audio, SDL3 for window and
+input. No emulator is involved at runtime.
 
-<details>
-<summary><b>English summary</b></summary>
+> This repository contains no game code, no game data and no artwork. Building or running it requires your own
+> legally owned NTSC/USA Xbox disc.
 
-An unofficial **static recompilation** of *The Warriors* (original Xbox, 2005) to a native 64-bit Windows executable.
-The game's x86 code is translated ahead of time from your own `default.xbe`; nothing is emulated at runtime. The
-renderer is Direct3D 12, audio XAudio2, input SDL3. A separate launcher writes graphics/controller/keyboard settings
-and points the game at a data folder anywhere on disk. **Bring your own NTSC/USA Xbox dump** (disc image or extracted
-files); no game data is distributed. Alpha quality: it boots and plays, with rough edges listed below.
+[Bahasa Indonesia →](README.id.md)
 
-</details>
+![Launcher, Indonesian UI](docs/screenshots/launcher-id.png)
 
----
+## Contents
 
-## 1. Status jujur
+- [What the port covers](#what-the-port-covers)
+- [Status](#status)
+- [Requirements](#requirements)
+- [Playing a release build](#playing-a-release-build)
+- [Launcher](#launcher)
+- [Game data](#game-data)
+- [Building from source](#building-from-source)
+- [Controls](#controls)
+- [Troubleshooting](#troubleshooting)
+- [Repository layout](#repository-layout)
+- [Implementation notes](#implementation-notes)
+- [Legal](#legal)
 
-| Bagian | Keadaan |
+## What the port covers
+
+| Area | Implementation |
 |---|---|
-| Boot dari `default.xbe` → menu | ✅ |
-| Renderer Direct3D 12 | ✅ |
-| Audio XACT/DirectSound (dialog, musik, 3D) | ✅ |
-| Mouse + keyboard (key mapping, mouse-look, rebind) | ✅ |
-| Controller Xbox/PlayStation/Switch via SDL3 + rumble | ✅ |
-| Panel setting F10 di dalam game | ✅ |
-| Launcher terpisah (grafik/controller/keyboard/folder data, ID & EN) | ✅ |
-| MSAA | ❌ belum (renderer ini belum punya multisampled target) |
-| 720p widescreen | ❌ masih 480p seperti TV standar |
-| System Link (jaringan) | ❌ simbol Winsock/XNet masih trap |
+| Code translation | [XboxXBERecomp](https://github.com/TGP482/XboxXBERecomp) recompiler; 128 partitions generated from `default.xbe` |
+| Rendering | Native Direct3D 12 backend; Xbox vertex programs, pixel combiners and fixed-function state are translated in the runtime |
+| Audio | DirectSound implemented on XAudio2, including Xbox ADPCM, mix-in buffers and the 3D voice data XACT relies on |
+| Input | SDL3 gamepads (Xbox, PlayStation, Switch, rumble) and a keyboard/mouse layer with rebindable keys |
+| Front end | Separate launcher for graphics, controller, keyboard and game-folder settings; in-game panel on F10 |
 
-Ini **alpha**. Yang sudah diuji: boot, menu, beberapa menit berjalan, mouse/keyboard aktif, audio terinisialisasi.
-Misi panjang belum dituntaskan — anggap masih ada crash di tempat yang belum dijelajahi.
+## Status
 
-Diukur di mesin pengembangan (Ryzen 5 150 + iGPU): working set **±400 MB**, **±0,6 core** saat di menu, game berjalan
-pada **30 FPS** internal (bawaan game, bukan batas port).
+Working:
 
----
+- boots from `default.xbe` to the main menu and into gameplay
+- Direct3D 12 rendering, including the game's own 720-style HUD layout at 640×480
+- XACT audio: dialogue, music, 3D positional effects
+- keyboard and mouse, including camera control, button prompts and the F10 panel
+- gamepads through SDL3, with rumble
 
-## 2. Syarat sistem
+Not implemented:
 
-| | Minimum | Nyaman |
+- MSAA (the backend has no multisampled screen targets yet)
+- 720p output; the game runs at its 480p mode
+- System Link / online play (Winsock and XNet exports are still trapping stubs)
+
+The port is alpha. It has been tested through the opening missions and a few minutes of gameplay. Later missions may
+crash or show broken effects. Tested on a Ryzen 5 150 with integrated Radeon graphics: about 400 MB resident memory,
+around 0.6 core while in the menu, 30 FPS internal (the game's own frame step).
+
+## Requirements
+
+| | Minimum | Recommended |
 |---|---|---|
 | OS | Windows 10 64-bit | Windows 11 64-bit |
-| CPU | x86-64 dengan **SSE4.2 + POPCNT** (Intel Nehalem/Core i generasi 1, 2008+; AMD Bulldozer/FX, 2011+), 2 core | 4 thread atau lebih |
-| GPU | Direct3D 12 **feature level 11_0**: NVIDIA GTX 600+, AMD HD 7000+, Intel HD 4200 (Haswell)+ | GPU diskrit 2015+ |
-| VRAM | 256 MB | 512 MB+ |
-| RAM | 2 GB | 4 GB+ |
-| Disk | ~7 GB data game + ~0,4 GB hasil build | 12 GB |
-| Input | keyboard + mouse | controller XInput/PS/Switch |
+| CPU | x86-64 with SSE4.2 and POPCNT (Intel Nehalem/Core 1st gen 2008+, AMD Bulldozer/FX 2011+), 2 cores | 4 threads or more |
+| GPU | Direct3D 12 feature level 11_0 (NVIDIA GTX 600+, AMD HD 7000+, Intel HD 4200+) | discrete GPU from 2015 or later |
+| VRAM | 256 MB | 512 MB or more |
+| RAM | 2 GB | 4 GB or more |
+| Disk | ~7 GB for the game data plus ~0.4 GB of build output | 12 GB |
+| Input | keyboard and mouse | XInput/PlayStation/Switch gamepad |
 
-Catatan:
+Two cases that will not work:
 
-- **Core 2 Duo / Phenom II tidak bisa** — CPU-nya hanya SSE4.1, sedangkan build ini dikompilasi `-march=x86-64-v2`.
-- GPU dengan FL 11_0 tetapi **tanpa driver D3D12** (mis. Intel Ivy Bridge HD 4000) tidak bisa menjalankan game-nya,
-  tetapi **launcher tetap terbuka** (launcher memakai Direct3D 11) untuk mengatur setelan dan folder.
+- Core 2 Duo, Pentium Dual-Core and Phenom II. Those CPUs lack SSE4.2, and the build uses `-march=x86-64-v2`.
+- GPUs with feature level 11_0 but no Direct3D 12 driver, such as Intel Ivy Bridge HD 4000. The launcher still opens
+  (it uses Direct3D 11), so settings and the game folder can be configured, but the game cannot start.
 
----
+## Playing a release build
 
-## 3. Yang harus kamu punya
-
-- **Disc Xbox NTSC/USA retail** milikmu sendiri — ISO atau hasil ekstrak.
-- `default.xbe` dengan **SHA-1 `fe246a74501cd10d2ce89ca5dbda5080d2b2edcc`** (title ID `0x5454009B`, XDK 5849).
-  Runtime memeriksa hash ini; kalau beda (PAL/EUR atau versi lain) muncul peringatan
-  *"different release… start anyway?"* dan kemungkinan besar crash.
-- Versi PS2/PSP **tidak berlaku** untuk port ini.
-
----
-
-## 4. Instalasi untuk pemain (dari rilis zip)
-
-Rilis berisi alat, bukan game:
+A release archive contains the executables and the compiler, not the game:
 
 ```
 TheWarriors/
-├─ TheWarriorsLauncher.exe
-├─ TheWarriors.exe
-├─ TheWarriors.dll            <- BARU ADA setelah start pertama
-├─ msvcp140.dll, vcruntime140.dll, vcruntime140_1.dll
-├─ compiler/                  <- clang + lld + xbe_recomp, dipakai saat start pertama
-├─ assets/                    <- taruh ISO (atau hasil ekstrak) milikmu di sini
-└─ README.md, THIRD_PARTY.md, LICENSE
+  TheWarriorsLauncher.exe
+  TheWarriors.exe
+  TheWarriors.dll              created on first launch
+  msvcp140.dll
+  vcruntime140.dll
+  vcruntime140_1.dll
+  compiler/                    clang, lld and xbe_recomp, used on first launch
+  assets/                      put your game here
 ```
 
-Langkah:
+1. Extract the archive to a writable folder. Avoid `C:\Program Files` and folders synced by OneDrive.
+2. Put your game in `assets/`, in either form:
+   - a single Xbox `.iso` (any filename), or
+   - extracted files: `default.xbe`, `Main.wad0..3`, `Paks.wad0..2`, `System.wad0`, `XBoxWad.idx`, `audio/`, `bik/`.
+3. Run `TheWarriorsLauncher.exe`. If the game is not in `assets/`, open the **Game files** tab and point it at the
+   folder or ISO. Then press **Play**.
+4. The first launch compiles the game's code from your `default.xbe`. It takes 1.5–4 minutes depending on the CPU and
+   happens once per release. Later launches go straight to the game.
+5. Press **F10** in game for display, mouse, key binding and controller settings.
 
-1. **Ekstrak** zip ke folder yang bisa ditulis (bukan `C:\Program Files`, dan hindari folder yang disinkronkan
-   OneDrive). Jangan jalankan dari dalam zip.
-2. **Taruh data game** di `assets\`, salah satu bentuk:
-   - satu file **`.iso`** Xbox (nama bebas) — paling mudah, tidak perlu ekstrak; atau
-   - hasil ekstrak lengkap: `default.xbe`, `Main.wad0..3`, `Paks.wad0..2`, `System.wad0`, `XBoxWad.idx`,
-     `audio\`, `bik\`.
-   Boleh juga diletakkan di drive lain — lihat langkah 3.
-3. **Jalankan `TheWarriorsLauncher.exe`** → tab **Folder game** → arahkan ke folder/ISO-mu (kalau tidak di
-   `assets\`) → tombol **MAINKAN**.
-4. **Start pertama**: jendela progres muncul, kode game dikompilasi dari XBE milikmu (±1,5–4 menit tergantung CPU,
-   129 file). Sekali per rilis; berikutnya langsung masuk.
-5. Di dalam game tekan **F10** untuk panel setting (display, sensitivitas, rebind key, controller).
+## Launcher
 
-> Jangan menaruh `default.xbe` **sendirian** tanpa file WAD di folder data. Runtime akan memilih folder itu dan game
-> mati beberapa ratus milidetik setelah boot dengan `C0000005 write ... guest 00000000`. Ini penyebab crash paling
-> menjebak saat bring-up — lihat [PORTING-STATUS.md](PORTING-STATUS.md).
-
-### Launcher
-
-| Tab | Isi |
+| Tab | Contents |
 |---|---|
-| **Grafik** | mode layar (fullscreen/borderless/windowed), lebar/tinggi, render scale %, FPS cap, V-Sync, anisotropic filtering, tekstur pengganti |
-| **Controller** | kecepatan kamera, deadzone, invert X/Y, getaran + kekuatan, remap tombol pad |
-| **Keyboard & Mouse** | aktif/nonaktif, sensitivitas, smoothing, invert Y, klik menu, 25 binding key |
-| **Folder game** | folder data (bisa di drive mana pun), executable game, lokasi `settings.toml` |
+| Graphics | display mode, resolution, render scale, FPS cap, V-Sync, anisotropic filtering, replacement textures |
+| Controller | camera speed, stick deadzone, invert X/Y, vibration strength, pad button remapping |
+| Keyboard & Mouse | enable/disable, sensitivity, smoothing, invert Y, menu clicks, all 25 key bindings |
+| Game files | data folder (any drive), game executable, location of `settings.toml` |
 
-Bahasa antarmuka: **Indonesia / English** (kanan atas), tersimpan sebagai `launcher_language` di `settings.toml`.
-Launcher dan game membaca **file setelan yang sama**, jadi perubahan dari launcher maupun dari panel F10 selalu
-konsisten.
+The interface is available in Indonesian and English. The launcher and the game read the same `settings.toml`, so
+changes made in either place stay consistent.
 
----
+## Game data
 
-## 5. Instalasi untuk developer (build dari source)
+The runtime accepts one of two layouts and rejects the rest:
 
-Butuh:
+| Layout | Result |
+|---|---|
+| `assets/` contains one or more `.iso` files | mounted directly; `default.xbe` is read from the image |
+| `assets/` holds the fully extracted disc (XBE, WADs, `audio/`, `bik/`) | read from disk |
+| `assets/` holds only `default.xbe` without the WAD files | fails about 0.4 s after boot with `C0000005 write ... guest 00000000` |
+| `.7z`, `.zip`, `.rar`, `.cso`, split images | not supported; extract or convert to a single `.iso` first |
 
-- **Visual Studio 2022 Build Tools** dengan komponen: *C++ Clang tools for Windows*, *C++ CMake tools for Windows*,
-  Windows 10/11 SDK (header & lib D3D12/XAudio2).
-- Git, CMake ≥ 3.25, Ninja. Kalau tidak ada di PATH, taruh portable di `..\toolchain\` (git/cmake/ninja) —
-  `build-here.bat` menambahkannya sendiri.
-- **Disc Xbox NTSC** milikmu sebagai `assets\default.xbe` (+ folder datanya).
+The executable checks the SHA-1 of `default.xbe`. For this build it must be
+`fe246a74501cd10d2ce89ca5dbda5080d2b2edcc` (title ID `0x5454009B`, XDK 5849). Other releases, including PAL/EUR,
+produce a warning and will most likely crash. The PS2 and PSP versions are not compatible with this port.
 
-Build:
+The game folder can live anywhere. Set it in the launcher and it is stored as `game_files` in `settings.toml`; when
+the field is empty the runtime looks for `assets/` next to the executable and in the folders above it.
+
+## Building from source
+
+Prerequisites:
+
+- Visual Studio 2022 Build Tools with the C++ Clang tools, C++ CMake tools and the Windows 10/11 SDK
+- Git, CMake 3.25 or newer, Ninja (portable copies work; `build-here.bat` adds `..\toolchain` to `PATH`)
+- your own NTSC `default.xbe` placed at `assets/default.xbe`, with the game folders beside it
 
 ```bat
 build-here.bat
 ```
 
-Alurnya: konfigurasi CMake (mengunduh Zydis/toml++/SDL3/ImGui lewat FetchContent) → `xbe_symbols` memindai XBE dan
-menulis `config\game.toml` → `xbe_recomp` menerjemahkan 128 partisi kode game → compile + link.
+The script configures CMake (which fetches Zydis, toml++, SDL3 and Dear ImGui), runs `xbe_symbols` to produce
+`config/game.toml` from the XBE, recompiles 128 code partitions, then compiles and links.
 
-Hasil di `out\build\release\`:
+Output in `out/build/release/`:
 
 ```
-TheWarriors.exe            host: runtime + hook
-TheWarriors.dll            kode game hasil recompile (±14,8 MB)
-TheWarriorsLauncher.exe    launcher
-compiler\                  dipakai untuk build-ulang kode game di PC lain
+TheWarriors.exe             host runtime and hooks
+TheWarriors.dll             recompiled game code (~15 MB)
+TheWarriorsLauncher.exe     launcher
+compiler/                   toolchain used to rebuild the game code on another machine
 ```
 
-Catatan build:
+Notes:
 
-- Configure **mewajibkan** `assets\default.xbe` ada, karena hash-nya ditanam ke exe. Tanpa dump, repo tidak bisa
-  di-build — ini normal untuk proyek recompilation (BYOD).
-- `xbe_symbols` menemukan 179/243 fungsi + 10/12 data untuk XBE retail ini; sisanya (Bink, sebagian DirectSound
-  lanjutan, Winsock/XNet) diisi manual atau dibiarkan trap. Rincian di [PORTING-STATUS.md](PORTING-STATUS.md).
-- Paket rilis: `release.bat` (butuh 7-Zip) atau `package.bat` (tanpa 7-Zip). Keduanya menyusun zip **tanpa**
-  `TheWarriors.dll`, **tanpa** data game di `assets\`, dan **tanpa** `compiler\work`.
+- Configuration requires `assets/default.xbe`, because its hash is embedded in the executable. A checkout without a
+  game dump cannot be built; that is inherent to recompilation projects.
+- `xbe_symbols` resolves 179 of 243 functions and 10 of 12 data symbols for this XBE. The rest (Bink, some advanced
+  DirectSound exports, Winsock/XNet) are either mapped by hand or left as trapping stubs.
+- Release packaging: `package.bat` (no external tools) or `release.bat` (needs 7-Zip). Both exclude
+  `TheWarriors.dll`, the game data and `compiler/work`.
 
----
+## Controls
 
-## 6. Kontrol default
-
-| Aksi | Key |
+| Action | Keys |
 |---|---|
-| Jalan | W A S D (Left Alt = walk) |
-| Kamera | mouse |
-| Serang ringan (X) | Klik kiri |
-| Serang berat / charge (A) | Klik kanan, Enter |
-| Grab / lempar (B) | E, Backspace |
-| Aksi: lompat, panjat, rampok (Y) | Space |
+| Move | W A S D, Left Alt to walk |
+| Camera | mouse |
+| Light attack (X) | left mouse |
+| Heavy attack / charge (A) | right mouse, Enter |
+| Grab / throw (B) | E, Backspace |
+| Jump, climb, mug (Y) | Space |
 | Sprint (LT) | Left Shift |
-| Target / lepas grapple (RT) | Q |
+| Target / reverse grapple (RT) | Q |
 | Block (Black) | F |
 | White | R |
-| Rage (kedua trigger) | Z |
-| Perintah geng (L3) | C |
-| Klik stick kanan | Mouse3, V |
-| D-pad | Panah, 1 2 3 4 |
-| Pause / Back | Esc / Tab |
-| Panel setting | F10 |
+| Rage (both triggers) | Z |
+| Gang commands (L3) | C |
+| Right stick click | middle mouse, V |
+| D-pad | arrow keys, 1 2 3 4 |
+| Pause / Back | Esc, Tab |
+| Settings panel | F10 |
 
-Semua bisa di-rebind lewat launcher (tab **Keyboard & Mouse**) atau panel F10.
+All bindings can be changed in the launcher or in the F10 panel.
 
----
+## Troubleshooting
 
-## 7. Struktur repositori
-
-```
-TheWarriors-XBE/
-├─ launcher/main.cpp        launcher: ImGui + D3D11, menulis settings.toml, tombol PLAY
-├─ src/
-│  ├─ game/                 hook game-side: kbm, camera, prompts, menu, lockpick, movies, dsound, d3d
-│  └─ common/               apu_clock, game_info (penyambung hook host)
-├─ config/game.toml         alamat simbol + hook untuk XBE ini
-├─ sdk/                     XboxXBERecomp (MIT) — recompiler + runtime
-├─ build.bat                build lengkap
-├─ build-here.bat           build dengan toolchain portabel di ..\toolchain
-├─ release.bat              paket rilis (butuh 7-Zip)
-├─ package.bat              paket rilis tanpa 7-Zip
-├─ Play.bat                 buka launcher (fallback ke game)
-├─ PORTING-STATUS.md        catatan bring-up: apa yang ditambal, mengapa, apa yang tersisa
-├─ THIRD_PARTY.md           komponen pihak ketiga + lisensi
-└─ PANDUAN.md               catatan eksperimen Android (bukan port PC ini)
-```
-
----
-
-## 8. Troubleshooting
-
-| Gejala | Penyebab & solusi |
+| Symptom | Cause and fix |
 |---|---|
-| Langsung menutup, crash di `MSVCP140.dll` | DLL CRT sistem terlalu lama. Rilis sudah membawa `msvcp140.dll` / `vcruntime140*.dll`; pastikan ada di samping exe |
-| `Put the game in the assets folder` | `assets\` kosong, ISO masih ter-zip, atau ekstrak terlalu dalam (`assets\The Warriors\default.xbe`) |
-| `...is a different release of the game` | XBE bukan NTSC retail (`fe246a74…`). PAL/EUR butuh build lain |
-| Mati ~0,4 detik setelah boot | Folder data tidak lengkap (mis. hanya `default.xbe` tanpa WAD) — pakai ISO atau ekstrak penuh |
-| Kompilasi start pertama gagal | Antivirus mengarantina `compiler\clang.exe` / `lld-link.exe`; kembalikan lalu tambahkan exclusion. Detail di `logs\compile.log` |
-| Layar hitam / tanpa jendela | Perbarui driver GPU; di laptop dua GPU, set exe ke GPU high-performance |
-| Tidak ada suara | Set device playback default Windows sebelum start |
-| FPS rendah | Turunkan `render_percent` (60–80), `fps_cap = 30`, `anisotropic_filtering = 0` di launcher |
-| Crash di tengah misi | Buka issue dengan `logs\warriors.log` + file terbaru di `CrashDumps\` |
+| Exits immediately, fault in `MSVCP140.dll` | system CRT is older than the toolset. Release archives ship the matching runtime DLLs; keep them next to the executable. |
+| `Put the game in the assets folder` | `assets/` is empty, the ISO is still archived, or the files sit one level too deep (`assets/The Warriors/default.xbe`). |
+| `...is a different release of the game` | the XBE is not the NTSC retail release. PAL/EUR needs a different build. |
+| Crashes about 0.4 s after boot | incomplete game folder, usually a lone `default.xbe`. Use the ISO or a full extraction. |
+| First-launch compile fails | antivirus quarantined `compiler/clang.exe` or `lld-link.exe`. Restore them, add an exclusion; details in `logs/compile.log`. |
+| Black screen or no window | update the GPU driver. On laptops with two GPUs, force the executable onto the discrete GPU. |
+| No sound | set the intended playback device as the Windows default before starting. |
+| Low frame rate | lower `render_percent` to 60–80, set `fps_cap` to 30, disable anisotropic filtering. |
 
-Log `logs\TheWarriors.log`, save `hdd\`, setelan `settings.toml` — semuanya di samping exe.
+Logs are written to `logs/TheWarriors.log`, saves to `hdd/`, settings to `settings.toml`, all next to the
+executable. Crash dumps go to `CrashDumps/`.
 
----
+## Repository layout
 
-## 9. Lisensi & kredit
+```
+launcher/main.cpp        launcher: ImGui with a Direct3D 11 backend, writes settings.toml, starts the game
+src/game/                game-side hooks: kbm, camera, prompts, menu, lockpick, movies, dsound, d3d
+src/common/              apu_clock, game_info (host hook wiring)
+config/game.toml         symbol map and hooks for this XBE
+sdk/                     XboxXBERecomp (MIT) plus the fixes described below
+docs/                    screenshots and historical notes
+build.bat                full build
+build-here.bat           build using the portable toolchain in ..\toolchain
+package.bat              release archive without external tools
+release.bat              release archive using 7-Zip
+Play.bat                 opens the launcher, or the game if the launcher is missing
+PORTING-STATUS.md        bring-up notes: what was fixed, why, and what is left
+THIRD_PARTY.md           third-party components and licenses
+```
 
-Kode asli repositori ini (launcher, skrip build, dokumentasi, perbaikan host-side) dirilis **MIT** — lihat
-[LICENSE](LICENSE). Lisensi itu **tidak** memberi hak apa pun atas game, kode game, atau asetnya.
+## Implementation notes
 
-Komponen pihak ketiga dan asal-usul hook game ada di [THIRD_PARTY.md](THIRD_PARTY.md). Yang utama:
+The runtime is not stock. Fixes made for this title, all documented in [PORTING-STATUS.md](PORTING-STATUS.md):
 
-- **[XboxXBERecomp](https://github.com/TGP482/XboxXBERecomp)** (TGP482, MIT) — recompiler + runtime.
-- **[TheWarriors-XBERecomp](https://github.com/Antriksh1984/TheWarriors-XBERecomp)** (Antriksh1984) — acuan alamat
-  simbol, hook DirectSound/D3D/APU, serta lapisan keyboard/mouse dan menu untuk XBE NTSC yang sama.
-- XenonRecomp, Zydis, toml++, Dear ImGui, SDL3, LLVM.
+- **APU sample counter.** XACT reads the MCPX counter at `0xFE80200C` directly. The host now commits that page and
+  keeps a 48 kHz counter running; without it the game faults during audio init.
+- **DirectSound.** The SDK's implementation was replaced with one that models XACT's requirements: mix-in buffers,
+  3D voice data, amplitude envelopes, stream pause and flush behaviour.
+- **Kernel waiters.** The upstream SDK's newer per-object waiter implementation caused the game to stall right after
+  `D3D12 adapter`. The previous implementation from the port this project follows is used instead.
+- **Memory accounting.** `MmQueryStatistics` no longer reports the kernel data area as available.
 
-*The Warriors* © Rockstar Games / Take-Two Interactive. Proyek ini tidak resmi dan tidak berafiliasi; tidak
-menyertakan kode game maupun data game.
+## Legal
+
+The original work in this repository (launcher, build scripts, documentation, host-side fixes) is MIT licensed; see
+[LICENSE](LICENSE). That license grants no rights to the game, its code or its assets.
+
+*The Warriors* is © Rockstar Games / Take-Two Interactive. This project is unofficial, unaffiliated and ships no game
+data. Third-party components and the origin of the game-side hooks are listed in [THIRD_PARTY.md](THIRD_PARTY.md).
