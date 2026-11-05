@@ -1,9 +1,10 @@
-# The Warriors — native PC build (Xbox static recompilation)
+﻿# The Warriors — native PC build (Xbox static recompilation)
 
 ![status](https://img.shields.io/badge/status-alpha-orange)
 ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-blue)
 ![renderer](https://img.shields.io/badge/renderer-Direct3D%2012-informational)
 ![license](https://img.shields.io/badge/license-MIT-green)
+[![Download](https://img.shields.io/badge/download-v0.1.0--alpha-brightgreen)](https://github.com/irsyadkgr678/TheWarriors-XBE/releases/tag/v0.1.0-alpha)
 
 An unofficial port of *The Warriors* (Xbox, 2005). The x86 code inside the game's `default.xbe` is translated to C++
 at build time and linked against a Windows runtime: Direct3D 12 for rendering, XAudio2 for audio, SDL3 for window and
@@ -81,7 +82,9 @@ Two cases that will not work:
 
 ## Playing a release build
 
-A release archive contains the executables and the compiler, not the game:
+A release archive contains the executables and the compiler, not the game. Latest download:
+<https://github.com/irsyadkgr678/TheWarriors-XBE/releases/tag/v0.1.0-alpha>
+
 
 ```
 TheWarriors/

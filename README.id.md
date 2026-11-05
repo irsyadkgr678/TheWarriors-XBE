@@ -1,7 +1,8 @@
-# The Warriors — build PC native (recompilasi statis dari Xbox)
+﻿# The Warriors — build PC native (recompilasi statis dari Xbox)
 
 ![status](https://img.shields.io/badge/status-alpha-orange)
 ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-blue)
+[![Download](https://img.shields.io/badge/download-v0.1.0--alpha-brightgreen)](https://github.com/irsyadkgr678/TheWarriors-XBE/releases/tag/v0.1.0-alpha)
 
 Port tidak resmi *The Warriors* (Xbox, 2005). Kode x86 di dalam `default.xbe` diterjemahkan ke C++ saat build, lalu
 dijalankan sebagai aplikasi Windows 64-bit: Direct3D 12 untuk gambar, XAudio2 untuk suara, SDL3 untuk window dan
@@ -33,6 +34,10 @@ Belum ada: MSAA, output 720p (masih 480p), System Link. Build ini alpha dan baru
 Core 2 Duo, Pentium Dual-Core dan Phenom II tidak bisa: CPU-nya belum punya SSE4.2. GPU yang punya feature level
 11_0 tapi tanpa driver D3D12 (misalnya Intel HD 4000 Ivy Bridge) juga tidak bisa menjalankan game, walaupun launcher
 tetap terbuka.
+
+## Unduhan
+
+Rilis terbaru: <https://github.com/irsyadkgr678/TheWarriors-XBE/releases/tag/v0.1.0-alpha>
 
 ## Cara main
 
