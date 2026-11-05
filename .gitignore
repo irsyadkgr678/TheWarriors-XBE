@@ -1,0 +1,38 @@
+# build
+/out/
+/build/
+*.zip
+*.pdb
+*.exe
+*.obj
+*.o
+*.lib
+*.dll
+
+# recompiled game code, derived from the game's binary: never commit it
+/generated/
+/TheWarriors.dll
+
+# the player's own game files: never commit them
+/assets/
+*.iso
+*.xiso
+*.xbe
+*.wad*
+XBoxWad.idx
+
+# runtime files
+settings.toml
+/logs/
+/hdd/
+/CrashDumps/
+*.log
+*.dmp
+
+# editors
+.vs/
+.vscode/
+.idea/
+
+# Local temporary folder
+.local
