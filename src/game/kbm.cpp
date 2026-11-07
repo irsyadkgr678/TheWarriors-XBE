@@ -1,4 +1,4 @@
-// Keyboard and mouse on the keyboard's port (port 1), and the controller's settings.
+﻿// Keyboard and mouse on the keyboard's port (port 1), and the controller's settings.
 // Keys and mouse buttons come from the window's messages, the mouse's movement as raw input counts, which the camera
 // turns into angles (camera.cpp): the game never sees the mouse as a stick there. Each key presses the console pad
 // control it is bound to, merged with a controller on the same port.

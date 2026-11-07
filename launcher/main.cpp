@@ -107,6 +107,7 @@ const Tr kTr[] = {
      "Key names: A..Z, 0..9, F1..F12, LShift, LAlt, Space, Enter, Esc, Mouse1..Mouse5, Up/Down/Left/Right."},
     {"key_pairs", "Dua key dipisah koma, mis. 'Mouse2,Enter'.", "Two keys are comma separated, e.g. 'Mouse2,Enter'."},
     {"bindings", "Bindings", "Bindings"},
+    {"reset_keys", "Reset semua key", "Reset all keys"},
 
     {"files", "Folder data game", "Game files folder"},
     {"files_note",
@@ -339,7 +340,7 @@ void Load() {
     }
     if (auto* k = t["keys"].as_table())
         for (const Row& r : kKeys)
-            if (auto v = (*k)[r.id].value<std::string>()) g_cfg.keys[r.id] = *v;
+            if (auto v = (*k)[r.id].value<std::string>(); v && !v->empty()) g_cfg.keys[r.id] = *v;
     if (auto* m = t["mouse"].as_table()) {
         if (auto v = (*m)["keyboard_and_mouse"].value<bool>()) g_cfg.kb_enabled = *v;
         if (auto v = (*m)["menu_buttons"].value<bool>()) g_cfg.menu_buttons = *v;
@@ -385,9 +386,10 @@ void Save() {
         if (auto* b = (*c)["buttons"].as_table())
             for (auto& [id, v] : g_cfg.pad) b->insert_or_assign(id, v);
     }
-    if (!t.contains("keys")) t.insert("keys", toml::table{});
-    if (auto* k = t["keys"].as_table())
-        for (auto& [id, v] : g_cfg.keys) k->insert_or_assign(id, v);
+    toml::table keys;
+    for (auto& [id, v] : g_cfg.keys)
+        if (!v.empty()) keys.insert_or_assign(id, v);
+    t.insert_or_assign("keys", std::move(keys));
     if (!t.contains("mouse")) t.insert("mouse", toml::table{});
     if (auto* m = t["mouse"].as_table()) {
         m->insert_or_assign("keyboard_and_mouse", g_cfg.kb_enabled);
@@ -405,6 +407,29 @@ void Save() {
     g_dirty = false;
 }
 
+HWND g_launcher_hwnd = nullptr;
+
+// the launcher owns the foreground when Play is pressed: hand it to the game, or the keyboard keeps typing into a
+// hidden launcher window and the game looks deaf
+BOOL CALLBACK FocusGameProc(HWND w, LPARAM lp) {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(w, &pid);
+    if (pid != DWORD(lp) || !IsWindowVisible(w)) return TRUE;
+    wchar_t cls[64] = {0};
+    GetClassNameW(w, cls, 63);
+    if (wcscmp(cls, L"ConsoleWindowClass") == 0) return TRUE;
+    ShowWindow(w, SW_RESTORE);
+    SetForegroundWindow(w);
+    return FALSE;
+}
+
+void FocusGameWindow(DWORD pid) {
+    if (g_launcher_hwnd) ShowWindow(g_launcher_hwnd, SW_MINIMIZE);
+    for (int i = 0; i < 60; i++) {  // the game creates its window a moment later, or after its first-run compile
+        if (!EnumWindows(FocusGameProc, LPARAM(pid))) return;
+        Sleep(100);
+    }
+}
 void Launch() {
     fs::path exe = GameExe();
     if (exe.empty()) {
@@ -424,6 +449,7 @@ void Launch() {
         g_status = std::string(T("status_launch_failed")) + std::to_string(GetLastError()) + ")";
         return;
     }
+    FocusGameWindow(pi.dwProcessId);
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
     g_status = std::string(T("status_launched")) + exe.filename().string();
@@ -441,6 +467,23 @@ bool Field(const char* label, std::string& value) {
     return false;
 }
 
+// the game's own defaults (src/game/kbm.cpp kActions): shown when a binding is absent, and restored by the reset button
+const char* KeyDefault(const char* id) {
+    static const Row defaults[] = {
+        {"a", "Mouse2,Enter"},      {"b", "E,Backspace"},        {"x", "Mouse1"},
+        {"y", "Space"},             {"black", "F"},              {"white", "R"},
+        {"left_trigger", "LShift"}, {"right_trigger", "Q"},      {"dpad_up", "Up,1"},
+        {"dpad_down", "Down,2"},    {"dpad_left", "Left,3"},     {"dpad_right", "Right,4"},
+        {"start", "Escape"},        {"back", "Tab"},             {"left_thumb", "C"},
+        {"right_thumb", "Mouse3,V"},{"forward", "W"},            {"backward", "S"},
+        {"left", "A"},              {"right", "D"},              {"walk", "LAlt"},
+        {"look_up", ""},            {"look_down", ""},           {"look_left", ""},
+        {"look_right", ""},         {"rage", "Z"},
+    };
+    for (const Row& r : defaults)
+        if (std::strcmp(r.id, id) == 0) return r.text;
+    return "";
+}
 // ---------------------------------------------------------------- look and feel
 
 constexpr ImU32 kAccent = IM_COL32(226, 69, 43, 255);
@@ -726,9 +769,16 @@ void KeyboardTab() {
 
     ImGui::Dummy(ImVec2(0, 6));
     SectionTitle(T("bindings"));
+    if (GhostButton(T("reset_keys"), ImVec2(200, 36))) {
+        g_cfg.keys.clear();
+        g_dirty = true;
+    }
+    ImGui::Dummy(ImVec2(0, 6));
     for (const Row& r : kKeys) {
-        Row(T(r.text));
-        Field("##key", g_cfg.keys[r.id]);
+        auto it = g_cfg.keys.find(r.id);
+        std::string shown = it != g_cfg.keys.end() ? it->second : KeyDefault(r.id);
+        SettingRow(T(r.text));
+        if (Field("##key", shown)) g_cfg.keys[r.id] = shown;
         RowEnd();
     }
 }
@@ -1006,6 +1056,7 @@ int Run() {
         DestroyWindow(hwnd);
         return 1;
     }
+    g_launcher_hwnd = hwnd;
     ShowWindow(hwnd, SW_SHOWDEFAULT);
     UpdateWindow(hwnd);
 
