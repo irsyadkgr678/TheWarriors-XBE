@@ -72,6 +72,10 @@ Tab **Folder game**: folder data, executable game, lokasi `settings.toml`.
 
 Antarmuka tersedia dalam Indonesia dan Inggris. Launcher dan game membaca `settings.toml` yang sama.
 
+Launcher menggambar latarnya sendiri. Kalau ada `background.png` atau `background.jpg` di samping exe, gambar itu yang
+dipakai dan diskalakan menutupi jendela. File tersebut milikmu; tidak ada artwork yang disertakan di repo ini dan
+namanya sudah di-ignore oleh git.
+
 ## Kontrol default
 
 | Aksi | Key |

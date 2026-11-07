@@ -1,4 +1,4 @@
-# Game Title (original Xbox), statically recompiled
+﻿# Game Title (original Xbox), statically recompiled
 
 cmake_minimum_required(VERSION 3.25)
 project(game LANGUAGES C CXX)
@@ -52,4 +52,8 @@ add_executable(TheWarriorsLauncher WIN32
     ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp)
 target_include_directories(TheWarriorsLauncher PRIVATE ${imgui_SOURCE_DIR})
 target_compile_definitions(TheWarriorsLauncher PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
-target_link_libraries(TheWarriorsLauncher PRIVATE tomlplusplus::tomlplusplus d3d11 dxgi ole32)
+target_link_libraries(TheWarriorsLauncher PRIVATE tomlplusplus::tomlplusplus d3d11 dxgi ole32 windowscodecs uuid)
+# per-monitor DPI awareness: without it Windows virtualises the window and the layout drifts from the mouse
+target_link_options(TheWarriorsLauncher PRIVATE -fuse-ld=lld
+    "-Wl,/MANIFEST:EMBED"
+    "-Wl,/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/launcher/launcher.manifest")

@@ -123,6 +123,10 @@ A step-by-step version for first-time testers, including failure cases and what 
 The interface is available in Indonesian and English. The launcher and the game read the same `settings.toml`, so
 changes made in either place stay consistent.
 
+The launcher draws its own backdrop. If `background.png` or `background.jpg` is placed next to the executable, that
+image is used instead and scaled to cover the window. The file is the player's own: no artwork ships with the
+project and the filenames are git-ignored.
+
 ## Game data
 
 The runtime accepts one of two layouts and rejects the rest:

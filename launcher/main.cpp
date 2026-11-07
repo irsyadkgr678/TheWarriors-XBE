@@ -1,4 +1,4 @@
-// The Warriors launcher: graphics, controller and keyboard settings written into the game's settings.toml, the folder
+﻿// The Warriors launcher: graphics, controller and keyboard settings written into the game's settings.toml, the folder
 // of the game files, and PLAY. Indonesian and English. It starts TheWarriors.exe and nothing else: the game keeps its
 // own F10 panel.
 #ifndef WIN32_LEAN_AND_MEAN
@@ -11,6 +11,7 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include <shobjidl.h>
+#include <wincodec.h>
 
 #include <algorithm>
 #include <cfloat>
@@ -19,6 +20,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -30,6 +32,8 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "windowscodecs.lib")
+#pragma comment(lib, "uuid.lib")
 
 namespace fs = std::filesystem;
 
@@ -58,6 +62,10 @@ const Tr kTr[] = {
     {"app_title", "THE WARRIORS", "THE WARRIORS"},
     {"app_sub", "launcher", "launcher"},
     {"language", "Bahasa", "Language"},
+    {"desc_graphics", "Resolusi, render scale, dan kualitas gambar.", "Resolution, render scale and image quality."},
+    {"desc_controller", "Deadzone, kecepatan kamera, dan getaran pad.", "Deadzone, camera speed and pad vibration."},
+    {"desc_keyboard", "Sensitivitas mouse dan pemetaan tombol.", "Mouse sensitivity and key bindings."},
+    {"desc_files", "Lokasi data game dan executable.", "Where the game data and executable live."},
     {"tab_graphics", "Grafik", "Graphics"},
     {"tab_controller", "Controller", "Controller"},
     {"tab_keyboard", "Keyboard & Mouse", "Keyboard & Mouse"},
@@ -130,8 +138,8 @@ const Tr kTr[] = {
     {"status_parse_broken", "settings.toml rusak: ", "settings.toml is malformed: "},
     {"status_saved", "Pengaturan disimpan.", "Settings saved."},
 
-    {"watermark", "Port PC tidak resmi — tidak berafiliasi dengan Rockstar Games",
-     "Unofficial PC port — not affiliated with Rockstar Games"},
+    {"watermark", "Port PC tidak resmi â€” tidak berafiliasi dengan Rockstar Games",
+     "Unofficial PC port â€” not affiliated with Rockstar Games"},
 
     {"k_forward", "Maju", "Move forward"},
     {"k_backward", "Mundur", "Move back"},
@@ -433,95 +441,314 @@ bool Field(const char* label, std::string& value) {
     return false;
 }
 
+// ---------------------------------------------------------------- look and feel
+
+constexpr ImU32 kAccent = IM_COL32(226, 69, 43, 255);
+constexpr ImU32 kAccentHot = IM_COL32(242, 84, 55, 255);
+constexpr ImU32 kText = IM_COL32(236, 229, 219, 255);
+constexpr ImU32 kMuted = IM_COL32(152, 141, 130, 255);
+constexpr ImU32 kLine = IM_COL32(58, 47, 41, 255);
+constexpr ImU32 kCard = IM_COL32(16, 12, 11, 150);
+
+ImFont* g_font_body = nullptr;
+ImFont* g_font_bold = nullptr;
+ImFont* g_font_title = nullptr;
+
+ImU32 Alpha(ImU32 c, float a) {
+    return (c & 0x00FFFFFFu) | (ImU32(std::clamp(a, 0.0f, 1.0f) * 255.0f) << 24);
+}
+
+ImVec4 ToVec4(ImU32 c) {
+    return ImVec4(((c >> 0) & 255) / 255.0f, ((c >> 8) & 255) / 255.0f, ((c >> 16) & 255) / 255.0f,
+                  ((c >> 24) & 255) / 255.0f);
+}
+
+void ApplyTheme() {
+    ImGuiStyle& s = ImGui::GetStyle();
+    s.WindowPadding = ImVec2(0, 0);
+    s.FramePadding = ImVec2(12, 7);
+    s.ItemSpacing = ImVec2(10, 10);
+    s.ItemInnerSpacing = ImVec2(8, 6);
+    s.WindowRounding = 0.0f;
+    s.ChildRounding = 12.0f;
+    s.FrameRounding = 7.0f;
+    s.PopupRounding = 8.0f;
+    s.GrabRounding = 7.0f;
+    s.ScrollbarRounding = 8.0f;
+    s.WindowBorderSize = 0.0f;
+    s.ChildBorderSize = 1.0f;
+    s.FrameBorderSize = 0.0f;
+    s.ScrollbarSize = 12.0f;
+
+    s.Colors[ImGuiCol_Text] = ToVec4(kText);
+    s.Colors[ImGuiCol_TextDisabled] = ToVec4(kMuted);
+    s.Colors[ImGuiCol_WindowBg] = ImVec4(0, 0, 0, 0);
+    s.Colors[ImGuiCol_ChildBg] = ImVec4(0, 0, 0, 0);
+    s.Colors[ImGuiCol_PopupBg] = ToVec4(IM_COL32(20, 16, 14, 252));
+    s.Colors[ImGuiCol_Border] = ToVec4(kLine);
+    s.Colors[ImGuiCol_FrameBg] = ToVec4(IM_COL32(33, 26, 23, 255));
+    s.Colors[ImGuiCol_FrameBgHovered] = ToVec4(IM_COL32(44, 34, 30, 255));
+    s.Colors[ImGuiCol_FrameBgActive] = ToVec4(IM_COL32(54, 41, 36, 255));
+    s.Colors[ImGuiCol_Button] = ToVec4(IM_COL32(35, 28, 25, 255));
+    s.Colors[ImGuiCol_ButtonHovered] = ToVec4(IM_COL32(48, 37, 32, 255));
+    s.Colors[ImGuiCol_ButtonActive] = ToVec4(IM_COL32(60, 46, 39, 255));
+    s.Colors[ImGuiCol_Header] = ToVec4(Alpha(kAccent, 0.22f));
+    s.Colors[ImGuiCol_HeaderHovered] = ToVec4(Alpha(kAccent, 0.30f));
+    s.Colors[ImGuiCol_HeaderActive] = ToVec4(Alpha(kAccent, 0.38f));
+    s.Colors[ImGuiCol_SliderGrab] = ToVec4(kAccent);
+    s.Colors[ImGuiCol_SliderGrabActive] = ToVec4(kAccentHot);
+    s.Colors[ImGuiCol_CheckMark] = ToVec4(kAccentHot);
+    s.Colors[ImGuiCol_Separator] = ToVec4(kLine);
+    s.Colors[ImGuiCol_ScrollbarBg] = ToVec4(IM_COL32(14, 11, 10, 140));
+    s.Colors[ImGuiCol_ScrollbarGrab] = ToVec4(IM_COL32(60, 47, 41, 255));
+    s.Colors[ImGuiCol_ScrollbarGrabHovered] = ToVec4(IM_COL32(78, 61, 52, 255));
+    s.Colors[ImGuiCol_ScrollbarGrabActive] = ToVec4(kAccent);
+}
+
+ImFont* AddFontFile(const char* file, float px) {
+    std::error_code ec;
+    if (!fs::exists(file, ec)) return nullptr;
+    ImFontConfig cfg;
+    cfg.OversampleH = 2;
+    cfg.OversampleV = 1;
+    cfg.PixelSnapH = true;
+    return ImGui::GetIO().Fonts->AddFontFromFileTTF(file, px, &cfg);
+}
+
+// Segoe UI for text, Impact for the wordmark if it is installed, else the built-in font.
+void LoadFonts() {
+    const std::string dir = "C:/Windows/Fonts/";
+    g_font_body = AddFontFile((dir + "segoeui.ttf").c_str(), 17.0f);
+    g_font_bold = AddFontFile((dir + "seguisb.ttf").c_str(), 17.0f);
+    if (!g_font_bold) g_font_bold = AddFontFile((dir + "segoeuib.ttf").c_str(), 17.0f);
+    g_font_title = AddFontFile((dir + "impact.ttf").c_str(), 54.0f);
+    if (g_font_title) ImGui::GetIO().Fonts->AddFontDefault();
+    if (g_font_body) ImGui::GetIO().FontDefault = g_font_body;
+}
+
+void SectionTitle(const char* text) {
+    ImGui::Dummy(ImVec2(0, 4));
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    dl->AddRectFilled(ImVec2(p.x, p.y + 2), ImVec2(p.x + 3, p.y + 20), kAccent, 2.0f);
+    ImFont* f = g_font_bold ? g_font_bold : ImGui::GetFont();
+    dl->AddText(f, f->FontSize, ImVec2(p.x + 12, p.y), kText, text);
+    ImGui::Dummy(ImVec2(0, f->FontSize + 4));
+}
+
+void Hint(const char* text) {
+    ImGui::PushStyleColor(ImGuiCol_Text, ToVec4(kMuted));
+    ImGui::TextWrapped("%s", text);
+    ImGui::PopStyleColor();
+    ImGui::Dummy(ImVec2(0, 2));
+}
+
+// a label on the left, its control right aligned; close with RowEnd()
+void SettingRow(const char* label, float control_width = 250.0f) {
+    ImGui::PushID(label);
+    ImGui::AlignTextToFramePadding();
+    ImGui::PushStyleColor(ImGuiCol_Text, ToVec4(kText));
+    ImGui::TextUnformatted(label);
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    float x = ImGui::GetWindowContentRegionMax().x - control_width;
+    if (x > ImGui::GetCursorPosX()) ImGui::SetCursorPosX(x);
+    ImGui::SetNextItemWidth(control_width);
+}
+
+inline void RowEnd() { ImGui::PopID(); }
+
+bool AccentButton(const char* label, ImVec2 size) {
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    bool pressed = ImGui::InvisibleButton(label, size);
+    bool hovered = ImGui::IsItemHovered();
+    bool held = ImGui::IsItemActive();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(p, ImVec2(p.x + size.x, p.y + size.y), held ? IM_COL32(188, 55, 34, 255)
+                                                     : hovered ? kAccentHot
+                                                               : kAccent,
+                      9.0f);
+    ImFont* f = g_font_bold ? g_font_bold : ImGui::GetFont();
+    ImVec2 t = f->CalcTextSizeA(f->FontSize, FLT_MAX, 0.0f, label);
+    dl->AddText(f, f->FontSize, ImVec2(p.x + (size.x - t.x) * 0.5f, p.y + (size.y - t.y) * 0.5f),
+                IM_COL32(255, 246, 240, 255), label);
+    return pressed;
+}
+
+bool GhostButton(const char* label, ImVec2 size) {
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    bool pressed = ImGui::InvisibleButton(label, size);
+    bool hovered = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(p, ImVec2(p.x + size.x, p.y + size.y),
+                      hovered ? IM_COL32(44, 35, 30, 255) : IM_COL32(28, 22, 19, 235), 9.0f);
+    dl->AddRect(p, ImVec2(p.x + size.x, p.y + size.y), kLine, 9.0f);
+    ImFont* f = g_font_body ? g_font_body : ImGui::GetFont();
+    ImVec2 t = f->CalcTextSizeA(f->FontSize, FLT_MAX, 0.0f, label);
+    dl->AddText(f, f->FontSize, ImVec2(p.x + (size.x - t.x) * 0.5f, p.y + (size.y - t.y) * 0.5f), kText, label);
+    return pressed;
+}
+
+bool NavItem(const char* id, const char* label, bool active) {
+    ImGui::PushID(id);
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    float w = ImGui::GetContentRegionAvail().x;
+    const float h = 44.0f;
+    bool clicked = ImGui::InvisibleButton("##nav", ImVec2(w, h));
+    bool hovered = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    if (active) {
+        dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), Alpha(kAccent, 0.16f), 9.0f);
+        dl->AddRectFilled(ImVec2(p.x, p.y + 10), ImVec2(p.x + 3, p.y + h - 10), kAccent, 2.0f);
+    } else if (hovered) {
+        dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), IM_COL32(255, 255, 255, 12), 9.0f);
+    }
+    ImFont* f = active && g_font_bold ? g_font_bold : (g_font_body ? g_font_body : ImGui::GetFont());
+    dl->AddText(f, f->FontSize, ImVec2(p.x + 18, p.y + (h - f->FontSize) * 0.5f), active ? kText : kMuted, label);
+    ImGui::PopID();
+    return clicked;
+}
+
+// the wordmark, drawn per glyph so it can be tracked out like a poster title
+void DrawWordmark(ImDrawList* dl, ImVec2 pos, float size) {
+    ImFont* f = g_font_title ? g_font_title : (g_font_bold ? g_font_bold : ImGui::GetFont());
+    const char* text = "THE WARRIORS";
+    float x = pos.x;
+    const float tracking = size * 0.045f;
+    for (const char* c = text; *c; ++c) {
+        char ch[2] = {*c, 0};
+        dl->AddText(f, size, ImVec2(x, pos.y), kText, ch);
+        x += f->CalcTextSizeA(size, FLT_MAX, 0.0f, ch).x + tracking;
+    }
+    dl->AddRectFilled(ImVec2(pos.x, pos.y + size + 12), ImVec2(pos.x + 72, pos.y + size + 15), kAccent, 1.5f);
+}
+
+void DrawTracked(ImDrawList* dl, ImVec2 pos, const char* text, float size, ImU32 color, float tracking) {
+    ImFont* f = g_font_body ? g_font_body : ImGui::GetFont();
+    float x = pos.x;
+    for (const char* c = text; *c; ++c) {
+        char ch[2] = {*c, 0};
+        dl->AddText(f, size, ImVec2(x, pos.y), color, ch);
+        x += f->CalcTextSizeA(size, FLT_MAX, 0.0f, ch).x + tracking;
+    }
+}
+
+// ---------------------------------------------------------------- pages
+
 void GraphicsTab() {
-    ImGui::TextUnformatted(T("graphics"));
-    ImGui::Separator();
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::Combo(T("display_mode"), &g_cfg.display_mode, kDisplayModes, 3)) g_dirty = true;
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::InputInt(T("width"), &g_cfg.width)) g_dirty = true;
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::InputInt(T("height"), &g_cfg.height)) g_dirty = true;
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::SliderInt(T("render_scale"), &g_cfg.render_percent, 30, 100)) g_dirty = true;
-    ImGui::TextDisabled("%s", T("render_hint"));
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::InputInt(T("fps_cap"), &g_cfg.fps_cap)) g_dirty = true;
-    if (ImGui::Checkbox(T("vsync"), &g_cfg.vsync)) g_dirty = true;
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::Combo(T("aniso"), &g_cfg.aniso, kAnisoNames, 6)) g_dirty = true;
-    if (ImGui::Checkbox(T("custom_tex"), &g_cfg.custom_textures)) g_dirty = true;
+    SectionTitle(T("graphics"));
+    SettingRow(T("display_mode"));
+    if (ImGui::Combo("##display_mode", &g_cfg.display_mode, kDisplayModes, 3)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("width"));
+    if (ImGui::InputInt("##width", &g_cfg.width)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("height"));
+    if (ImGui::InputInt("##height", &g_cfg.height)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("render_scale"));
+    if (ImGui::SliderInt("##render_scale", &g_cfg.render_percent, 30, 100)) g_dirty = true;
+    RowEnd();
+    Hint(T("render_hint"));
+    SettingRow(T("fps_cap"));
+    if (ImGui::InputInt("##fps_cap", &g_cfg.fps_cap)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("vsync"));
+    if (ImGui::Checkbox("##vsync", &g_cfg.vsync)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("aniso"));
+    if (ImGui::Combo("##aniso", &g_cfg.aniso, kAnisoNames, 6)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("custom_tex"));
+    if (ImGui::Checkbox("##custom_tex", &g_cfg.custom_textures)) g_dirty = true;
+    RowEnd();
 }
 
 void ControllerTab() {
-    ImGui::TextUnformatted(T("controller"));
-    ImGui::Separator();
-    ImGui::TextDisabled("%s", T("controller_note"));
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::SliderFloat(T("camera_speed"), &g_cfg.camera_speed, 0.2f, 3.0f, "%.2f")) g_dirty = true;
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::SliderFloat(T("deadzone"), &g_cfg.deadzone, 0.0f, 0.8f, "%.2f")) g_dirty = true;
-    if (ImGui::Checkbox(T("invert_x"), &g_cfg.invert_x)) g_dirty = true;
-    if (ImGui::Checkbox(T("invert_y"), &g_cfg.invert_y)) g_dirty = true;
-    if (ImGui::Checkbox(T("vibration"), &g_cfg.vibration)) g_dirty = true;
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::SliderFloat(T("vibration_strength"), &g_cfg.vibration_strength, 0.0f, 1.0f, "%.2f")) g_dirty = true;
+    SectionTitle(T("controller"));
+    Hint(T("controller_note"));
+    SettingRow(T("camera_speed"));
+    if (ImGui::SliderFloat("##camera_speed", &g_cfg.camera_speed, 0.2f, 3.0f, "%.2f")) g_dirty = true;
+    RowEnd();
+    SettingRow(T("deadzone"));
+    if (ImGui::SliderFloat("##deadzone", &g_cfg.deadzone, 0.0f, 0.8f, "%.2f")) g_dirty = true;
+    RowEnd();
+    SettingRow(T("invert_x"));
+    if (ImGui::Checkbox("##invert_x", &g_cfg.invert_x)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("invert_y"));
+    if (ImGui::Checkbox("##invert_y", &g_cfg.invert_y)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("vibration"));
+    if (ImGui::Checkbox("##vibration", &g_cfg.vibration)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("vibration_strength"));
+    if (ImGui::SliderFloat("##vibration_strength", &g_cfg.vibration_strength, 0.0f, 1.0f, "%.2f")) g_dirty = true;
+    RowEnd();
 
-    ImGui::Spacing();
-    ImGui::TextUnformatted(T("padmap"));
-    ImGui::Separator();
-    ImGui::BeginChild("padmap", ImVec2(0, 0), true);
+    ImGui::Dummy(ImVec2(0, 6));
+    SectionTitle(T("padmap"));
     for (const Row& r : kPad) {
         std::string& cur = g_cfg.pad[r.id];
         if (cur.empty()) cur = r.id;
         int idx = 0;
         for (int i = 0; i < int(std::size(kPad)); i++)
             if (cur == kPad[i].id) idx = i;
-        ImGui::SetNextItemWidth(-260.0f);
-        if (ImGui::Combo(r.text, &idx, [](void* data, int i) { return static_cast<const Row*>(data)[i].text; },
+        SettingRow(r.text);
+        if (ImGui::Combo("##pad", &idx, [](void* data, int i) { return static_cast<const Row*>(data)[i].text; },
                          (void*)kPad, int(std::size(kPad)))) {
             cur = kPad[idx].id;
             g_dirty = true;
         }
+        RowEnd();
     }
-    ImGui::EndChild();
 }
 
 void KeyboardTab() {
-    ImGui::TextUnformatted(T("keyboard"));
-    ImGui::Separator();
-    if (ImGui::Checkbox(T("kb_enable"), &g_cfg.kb_enabled)) g_dirty = true;
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::SliderFloat(T("sensitivity"), &g_cfg.sensitivity, 0.05f, 5.0f, "%.2f")) g_dirty = true;
-    ImGui::SetNextItemWidth(-260.0f);
-    if (ImGui::SliderFloat(T("smoothing"), &g_cfg.smoothing, 0.0f, 0.9f, "%.2f")) g_dirty = true;
-    if (ImGui::Checkbox(T("invert_y_mouse"), &g_cfg.mouse_invert_y)) g_dirty = true;
-    if (ImGui::Checkbox(T("menu_buttons"), &g_cfg.menu_buttons)) g_dirty = true;
-    ImGui::TextDisabled("%s", T("key_names"));
-    ImGui::TextDisabled("%s", T("key_pairs"));
+    SectionTitle(T("keyboard"));
+    SettingRow(T("kb_enable"));
+    if (ImGui::Checkbox("##kb_enable", &g_cfg.kb_enabled)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("sensitivity"));
+    if (ImGui::SliderFloat("##sensitivity", &g_cfg.sensitivity, 0.05f, 5.0f, "%.2f")) g_dirty = true;
+    RowEnd();
+    SettingRow(T("smoothing"));
+    if (ImGui::SliderFloat("##smoothing", &g_cfg.smoothing, 0.0f, 0.9f, "%.2f")) g_dirty = true;
+    RowEnd();
+    SettingRow(T("invert_y_mouse"));
+    if (ImGui::Checkbox("##invert_y_mouse", &g_cfg.mouse_invert_y)) g_dirty = true;
+    RowEnd();
+    SettingRow(T("menu_buttons"));
+    if (ImGui::Checkbox("##menu_buttons", &g_cfg.menu_buttons)) g_dirty = true;
+    RowEnd();
+    Hint(T("key_names"));
+    Hint(T("key_pairs"));
 
-    ImGui::Spacing();
-    ImGui::TextUnformatted(T("bindings"));
-    ImGui::Separator();
-    ImGui::BeginChild("keys", ImVec2(0, 0), true);
-    for (const Row& r : kKeys) Field(T(r.text), g_cfg.keys[r.id]);
-    ImGui::EndChild();
+    ImGui::Dummy(ImVec2(0, 6));
+    SectionTitle(T("bindings"));
+    for (const Row& r : kKeys) {
+        Row(T(r.text));
+        Field("##key", g_cfg.keys[r.id]);
+        RowEnd();
+    }
 }
 
 void GameFilesTab() {
-    ImGui::TextUnformatted(T("files"));
-    ImGui::Separator();
-    ImGui::TextWrapped("%s", T("files_note"));
+    SectionTitle(T("files"));
+    Hint(T("files_note"));
 
-    ImGui::Spacing();
     const bool custom = !g_cfg.game_files.empty();
     const char* state = custom ? GameFilesState(fs::u8path(g_cfg.game_files)) : nullptr;
     const bool ok = state && (std::strcmp(state, "files_ok_xbe") == 0 || std::strcmp(state, "files_ok_iso") == 0);
-    ImGui::Text("%s : %s", T("data_folder"), custom ? g_cfg.game_files.c_str() : T("data_default"));
+    ImGui::Dummy(ImVec2(0, 4));
     if (custom)
-        ImGui::TextColored(ok ? ImVec4(0.4f, 0.9f, 0.4f, 1) : ImVec4(0.95f, 0.5f, 0.4f, 1), "%s : %s", T("status"),
-                           T(state));
-    if (ImGui::Button(T("pick_folder"))) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ok ? ImVec4(0.45f, 0.85f, 0.45f, 1.0f) : ImVec4(0.95f, 0.52f, 0.40f, 1.0f));
+    ImGui::TextWrapped("%s: %s", T("data_folder"), custom ? g_cfg.game_files.c_str() : T("data_default"));
+    if (custom) ImGui::PopStyleColor();
+    if (custom) ImGui::TextDisabled("%s: %s", T("status"), T(state));
+
+    ImGui::Dummy(ImVec2(0, 6));
+    if (GhostButton(T("pick_folder"), ImVec2(230, 38))) {
         std::string picked = PickFolder();
         if (!picked.empty()) {
             g_cfg.game_files = picked;
@@ -529,17 +756,18 @@ void GameFilesTab() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button(T("clear_folder"))) {
+    if (GhostButton(T("clear_folder"), ImVec2(300, 38))) {
         g_cfg.game_files.clear();
         g_dirty = true;
     }
 
-    ImGui::Spacing();
-    ImGui::Separator();
+    ImGui::Dummy(ImVec2(0, 10));
+    SectionTitle(T("exe_label"));
     fs::path exe = GameExe();
     const std::string exeText = exe.empty() ? std::string(T("exe_missing")) : Narrow(exe);
-    ImGui::Text("%s : %s", T("exe_label"), exeText.c_str());
-    if (ImGui::Button(T("pick_exe"))) {
+    ImGui::TextWrapped("%s", exeText.c_str());
+    ImGui::Dummy(ImVec2(0, 6));
+    if (GhostButton(T("pick_exe"), ImVec2(230, 38))) {
         std::string picked = PickFolder();
         if (!picked.empty()) {
             g_cfg.game_exe = picked;
@@ -547,36 +775,15 @@ void GameFilesTab() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button(T("detect"))) {
+    if (GhostButton(T("detect"), ImVec2(150, 38))) {
         g_cfg.game_exe.clear();
         g_dirty = true;
     }
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Text("%s : %s", T("settings_path"), g_settings.string().c_str());
-    ImGui::TextDisabled("%s", T("settings_note"));
-}
-
-// a faint brand watermark over the panel: the title behind the content, and the credit line above the button row.
-// Drawn into the panel window's own draw list just before End(), which is the one place its coordinates are known.
-void WatermarkInPanel() {
-    const ImVec2 size = ImGui::GetIO().DisplaySize;
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImFont* font = ImGui::GetFont();
-
-    const char* big = "THE WARRIORS";
-    const float big_size = 68.0f;
-    const ImVec2 bsz = font->CalcTextSizeA(big_size, FLT_MAX, 0.0f, big);
-    dl->AddText(font, big_size, ImVec2((size.x - bsz.x) * 0.5f, size.y * 0.46f), IM_COL32(255, 255, 255, 46), big);
-
-    char line[256];
-    std::snprintf(line, sizeof line, "%s  ·  v%s", T("watermark"), kVersion);
-    const ImVec2 ssz = ImGui::CalcTextSize(line);
-    const ImVec2 at(size.x - ssz.x - 14.0f, size.y - ssz.y - 46.0f);  // above the button row
-    dl->AddRectFilled(ImVec2(at.x - 8, at.y - 4), ImVec2(at.x + ssz.x + 8, at.y + ssz.y + 4), IM_COL32(0, 0, 0, 110),
-                      4.0f);
-    dl->AddText(at, IM_COL32(255, 255, 255, 200), line);
+    ImGui::Dummy(ImVec2(0, 10));
+    SectionTitle(T("settings_path"));
+    ImGui::TextWrapped("%s", g_settings.string().c_str());
+    Hint(T("settings_note"));
 }
 
 // ---------------------------------------------------------------- D3D11 + ImGui
@@ -586,6 +793,26 @@ ID3D11DeviceContext* g_ctx = nullptr;
 IDXGISwapChain* g_swap = nullptr;
 ID3D11RenderTargetView* g_rtv = nullptr;
 bool g_occluded = false;
+
+ID3D11ShaderResourceView* g_backdrop = nullptr;
+int g_backdrop_w = 0, g_backdrop_h = 0;
+
+struct Building {
+    float x, w, h;
+};
+std::vector<Building> g_skyline;
+
+void BuildSkyline() {
+    std::mt19937 rng(1337);
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    float x = 0.0f;
+    while (x < 1.02f) {
+        float w = 0.018f + u(rng) * 0.045f;
+        float h = 0.10f + u(rng) * 0.34f;
+        g_skyline.push_back({x, w, h});
+        x += w + 0.005f;
+    }
+}
 
 void CreateTarget() {
     ID3D11Texture2D* back = nullptr;
@@ -613,6 +840,117 @@ bool CreateDevice(HWND hwnd) {
     return g_rtv != nullptr;
 }
 
+// a PNG or JPG through WIC, for the player's own backdrop
+ID3D11ShaderResourceView* LoadTexture(const fs::path& path, int* out_w, int* out_h) {
+    IWICImagingFactory* factory = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))))
+        return nullptr;
+    IWICBitmapDecoder* dec = nullptr;
+    IWICBitmapFrameDecode* frame = nullptr;
+    IWICFormatConverter* conv = nullptr;
+    ID3D11ShaderResourceView* srv = nullptr;
+    if (SUCCEEDED(factory->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnLoad,
+                                                     &dec)) &&
+        SUCCEEDED(dec->GetFrame(0, &frame)) && SUCCEEDED(factory->CreateFormatConverter(&conv)) &&
+        SUCCEEDED(conv->Initialize(frame, GUID_WICPixelFormat32bppRGBA, WICBitmapDitherTypeNone, nullptr, 0.0,
+                                   WICBitmapPaletteTypeCustom))) {
+        UINT w = 0, h = 0;
+        conv->GetSize(&w, &h);
+        if (w && h) {
+            std::vector<uint8_t> px(size_t(w) * h * 4);
+            if (SUCCEEDED(conv->CopyPixels(nullptr, w * 4, UINT(px.size()), px.data()))) {
+                D3D11_TEXTURE2D_DESC d{};
+                d.Width = w;
+                d.Height = h;
+                d.MipLevels = 1;
+                d.ArraySize = 1;
+                d.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                d.SampleDesc.Count = 1;
+                d.Usage = D3D11_USAGE_IMMUTABLE;
+                d.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+                D3D11_SUBRESOURCE_DATA sd{};
+                sd.pSysMem = px.data();
+                sd.SysMemPitch = w * 4;
+                ID3D11Texture2D* tex = nullptr;
+                if (SUCCEEDED(g_dev->CreateTexture2D(&d, &sd, &tex))) {
+                    g_dev->CreateShaderResourceView(tex, nullptr, &srv);
+                    tex->Release();
+                    *out_w = int(w);
+                    *out_h = int(h);
+                }
+            }
+        }
+    }
+    if (conv) conv->Release();
+    if (frame) frame->Release();
+    if (dec) dec->Release();
+    factory->Release();
+    return srv;
+}
+
+// background.png / .jpg beside the executable: the player's own artwork. Falls back to a drawn backdrop.
+void LoadBackdrop() {
+    const char* names[] = {"background.png", "background.jpg", "background.jpeg", "bg.png", "bg.jpg",
+                           "launcher-bg.png", "launcher-bg.jpg"};
+    for (const char* n : names) {
+        std::error_code ec;
+        fs::path p = ExeDir() / n;
+        if (!fs::exists(p, ec)) continue;
+        g_backdrop = LoadTexture(p, &g_backdrop_w, &g_backdrop_h);
+        if (g_backdrop) return;
+    }
+}
+
+void DrawBackdrop(const ImVec2& size) {
+    ImDrawList* dl = ImGui::GetBackgroundDrawList();
+    if (g_backdrop && g_backdrop_w && g_backdrop_h) {
+        const float image_aspect = float(g_backdrop_w) / float(g_backdrop_h);
+        const float screen_aspect = size.x / size.y;
+        ImVec2 uv0(0, 0), uv1(1, 1);
+        if (image_aspect > screen_aspect) {
+            const float f = screen_aspect / image_aspect;
+            uv0.x = (1.0f - f) * 0.5f;
+            uv1.x = 1.0f - uv0.x;
+        } else {
+            const float f = image_aspect / screen_aspect;
+            uv0.y = (1.0f - f) * 0.5f;
+            uv1.y = 1.0f - uv0.y;
+        }
+        dl->AddImage((ImTextureID)(intptr_t)g_backdrop, ImVec2(0, 0), size, uv0, uv1);
+        dl->AddRectFilledMultiColor(ImVec2(0, 0), size, IM_COL32(10, 8, 7, 140), IM_COL32(10, 8, 7, 110),
+                                    IM_COL32(10, 8, 7, 240), IM_COL32(10, 8, 7, 240));
+        dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(300, size.y), IM_COL32(10, 8, 7, 235), IM_COL32(10, 8, 7, 40),
+                                    IM_COL32(10, 8, 7, 40), IM_COL32(10, 8, 7, 235));
+        return;
+    }
+
+    dl->AddRectFilledMultiColor(ImVec2(0, 0), size, IM_COL32(26, 19, 16, 255), IM_COL32(22, 16, 15, 255),
+                                IM_COL32(10, 8, 7, 255), IM_COL32(9, 7, 6, 255));
+    const ImVec2 glow(size.x * 0.70f, size.y * 0.34f);
+    for (int i = 14; i > 0; i--) {
+        const float r = 30.0f + float(i) * 30.0f;
+        dl->AddCircleFilled(glow, r, IM_COL32(226, 69, 43, int(2.0f + float(i) * 0.9f)), 64);
+    }
+    for (const Building& b : g_skyline) {
+        const float x0 = b.x * size.x;
+        const float x1 = (b.x + b.w) * size.x;
+        const float top = size.y - b.h * size.y * 0.62f;
+        dl->AddRectFilled(ImVec2(x0, top), ImVec2(x1, size.y), IM_COL32(6, 5, 5, 255));
+        for (int wy = 0; wy < 5; wy++) {
+            for (int wx = 0; wx < 3; wx++) {
+                if (((wx * 7 + wy * 3 + int(b.x * 100)) % 5) != 0) continue;
+                const float px = x0 + (b.w * size.x) * (0.18f + 0.28f * float(wx));
+                const float py = top + 14.0f + float(wy) * 16.0f;
+                dl->AddRectFilled(ImVec2(px, py), ImVec2(px + 2.0f, py + 3.0f), IM_COL32(226, 120, 60, 70));
+            }
+        }
+    }
+    for (int i = 0; i < 5; i++) {
+        const float x = size.x * (0.15f + float(i) * 0.18f);
+        dl->AddLine(ImVec2(x, size.y), ImVec2(x + size.x * 0.35f, 0), IM_COL32(255, 255, 255, 5), 22.0f);
+    }
+}
+
 void DestroyTarget() {
     if (g_rtv) g_rtv->Release();
     g_rtv = nullptr;
@@ -620,6 +958,8 @@ void DestroyTarget() {
 
 void DestroyDevice() {
     DestroyTarget();
+    if (g_backdrop) g_backdrop->Release();
+    g_backdrop = nullptr;
     if (g_swap) g_swap->Release();
     if (g_ctx) g_ctx->Release();
     if (g_dev) g_dev->Release();
@@ -658,7 +998,7 @@ int Run() {
     wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     wc.lpszClassName = L"TheWarriorsLauncher";
     RegisterClassExW(&wc);
-    HWND hwnd = CreateWindowW(wc.lpszClassName, L"The Warriors — Launcher", WS_OVERLAPPEDWINDOW, 120, 80, 1000, 700,
+    HWND hwnd = CreateWindowW(wc.lpszClassName, L"The Warriors - Launcher", WS_OVERLAPPEDWINDOW, 120, 80, 1120, 720,
                               nullptr, nullptr, wc.hInstance, nullptr);
     if (!hwnd) return 1;
     if (!CreateDevice(hwnd)) {
@@ -672,11 +1012,15 @@ int Run() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::GetIO().IniFilename = nullptr;
-    ImGui::StyleColorsDark();
-    ImGui::GetStyle().WindowRounding = 0.0f;
+    ApplyTheme();
+    LoadFonts();
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_dev, g_ctx);
+    LoadBackdrop();
+    BuildSkyline();
 
+    const ImVec2 sidebar_size(272.0f, 0);
+    const float footer = 92.0f;
     bool running = true;
     while (running) {
         MSG msg;
@@ -694,62 +1038,103 @@ int Run() {
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
+        const ImVec2 display = ImGui::GetIO().DisplaySize;
+        DrawBackdrop(display);
+
         ImGui::SetNextWindowPos(ImVec2(0, 0));
-        ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+        ImGui::SetNextWindowSize(display);
         ImGui::Begin("##root", nullptr,
-                     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
+                     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+                         ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-        ImGui::TextUnformatted(T("app_title"));
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s  v%s", T("app_sub"), kVersion);
+        // ---- sidebar
+        ImGui::SetCursorPos(ImVec2(24, 26));
+        ImGui::BeginGroup();
+        {
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImVec2 origin = ImGui::GetCursorScreenPos();
+            DrawWordmark(dl, ImVec2(origin.x, origin.y), 42.0f);
+            DrawTracked(dl, ImVec2(origin.x, origin.y + 62), "UNOFFICIAL PC PORT", 12.0f, Alpha(kMuted, 0.95f), 2.4f);
+        }
+        ImGui::EndGroup();
+        ImGui::Dummy(ImVec2(1, 88));
 
-        // language picker, right aligned on the header row
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 6));
+        static const char* tab_keys[] = {"tab_graphics", "tab_controller", "tab_keyboard", "tab_files"};
+        for (int i = 0; i < 4; i++)
+            if (NavItem(tab_keys[i], T(tab_keys[i]), g_tab == i)) g_tab = i;
+        ImGui::PopStyleVar();
+
+        // language + version, pinned to the bottom of the sidebar
+        const float side_bottom = display.y - footer - 56.0f;
+        ImGui::SetCursorPos(ImVec2(24, std::max(side_bottom, 380.0f)));
+        ImGui::TextDisabled("%s", T("language"));
+        ImGui::SetCursorPosX(24);
+        ImGui::SetNextItemWidth(200.0f);
         const char* langs[] = {"Indonesia", "English"};
-        float combo_w = 130.0f;
-        float x = ImGui::GetIO().DisplaySize.x - combo_w - 150.0f;
-        ImGui::SameLine(x);
-        ImGui::TextUnformatted(T("language"));
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(combo_w);
         int lang = int(g_lang);
         if (ImGui::Combo("##lang", &lang, langs, 2)) {
             g_lang = Lang(lang);
-            g_dirty = true;  // written with the rest of the settings
+            g_dirty = true;
         }
-        ImGui::Separator();
 
-        const float footer = 62.0f;
-        ImGui::BeginChild("tabs", ImVec2(180, ImGui::GetContentRegionAvail().y - footer), true);
-        static const char* tab_keys[] = {"tab_graphics", "tab_controller", "tab_keyboard", "tab_files"};
-        for (int i = 0; i < 4; i++)
-            if (ImGui::Selectable(T(tab_keys[i]), g_tab == i, 0, ImVec2(0, 28))) g_tab = i;
-        ImGui::EndChild();
-        ImGui::SameLine();
-        ImGui::BeginChild("page", ImVec2(0, ImGui::GetContentRegionAvail().y - footer), true);
-        switch (g_tab) {
-            case 0: GraphicsTab(); break;
-            case 1: ControllerTab(); break;
-            case 2: KeyboardTab(); break;
-            default: GameFilesTab(); break;
+        // ---- content
+        ImGui::SetCursorPos(ImVec2(sidebar_size.x + 8, 24));
+        ImGui::BeginChild("##content", ImVec2(display.x - sidebar_size.x - 32, display.y - footer - 24),
+                          ImGuiChildFlags_None);
+        {
+            static const char* desc_keys[] = {"desc_graphics", "desc_controller", "desc_keyboard", "desc_files"};
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImFont* f = g_font_bold ? g_font_bold : ImGui::GetFont();
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            dl->AddText(f, 26.0f, p, kText, T(tab_keys[g_tab]));
+            ImGui::Dummy(ImVec2(0, 34));
+            Hint(T(desc_keys[g_tab]));
+            ImGui::Dummy(ImVec2(0, 4));
+
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ToVec4(kCard));
+            ImGui::BeginChild("##card", ImVec2(0, 0), ImGuiChildFlags_Border);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(18, 14));
+            switch (g_tab) {
+                case 0: GraphicsTab(); break;
+                case 1: ControllerTab(); break;
+                case 2: KeyboardTab(); break;
+                default: GameFilesTab(); break;
+            }
+            ImGui::PopStyleVar();
+            ImGui::EndChild();
+            ImGui::PopStyleColor();
         }
         ImGui::EndChild();
 
-        if (ImGui::Button(T("play"), ImVec2(150, 36))) Launch();
-        ImGui::SameLine();
-        if (ImGui::Button(T("save"), ImVec2(110, 36))) {
+        // ---- footer
+        ImGui::SetCursorPos(ImVec2(0, display.y - footer));
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImVec2 bar = ImGui::GetCursorScreenPos();
+        dl->AddLine(ImVec2(bar.x + 24, bar.y), ImVec2(display.x - 24, bar.y), kLine, 1.0f);
+
+        ImGui::SetCursorPos(ImVec2(sidebar_size.x + 8, display.y - footer + 24));
+        if (AccentButton(T("play"), ImVec2(190, 46))) Launch();
+        ImGui::SameLine(0, 12);
+        if (GhostButton(T("save"), ImVec2(120, 46))) {
             Save();
             g_status = T("status_saved");
         }
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s%s%s", g_dirty ? T("dirty") : "", g_dirty && !g_status.empty() ? " — " : "",
-                            g_status.c_str());
+        ImGui::SameLine(0, 20);
+        ImGui::SetCursorPosY(display.y - footer + 38);
+        if (g_dirty) ImGui::TextColored(ImVec4(0.95f, 0.62f, 0.35f, 1.0f), "%s", T("dirty"));
+        else ImGui::TextDisabled("%s", g_status.c_str());
 
-        WatermarkInPanel();
+        char credit[256];
+        std::snprintf(credit, sizeof credit, "%s  -  v%s", T("watermark"), kVersion);
+        ImVec2 cs = ImGui::CalcTextSize(credit);
+        ImGui::SetCursorPos(ImVec2(display.x - cs.x - 24, display.y - footer + 40));
+        ImGui::TextDisabled("%s", credit);
+
         ImGui::End();
 
         ImGui::Render();
-        const float clear[4] = {0.08f, 0.08f, 0.10f, 1.0f};
+        const float clear[4] = {0.06f, 0.05f, 0.05f, 1.0f};
         g_ctx->OMSetRenderTargets(1, &g_rtv, nullptr);
         g_ctx->ClearRenderTargetView(g_rtv, clear);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
@@ -768,13 +1153,11 @@ int Run() {
 }  // namespace
 
 int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
-    // physical pixels: with display scaling the window and ImGui's coordinates would otherwise disagree
     SetProcessDPIAware();
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     fs::path exe = GameExe();
     g_settings = (exe.empty() ? ExeDir() : exe.parent_path()) / "settings.toml";
     Load();
-    // --selftest: read settings.toml, write it back and leave, no window. Checks the round trip keeps every key.
     if (std::wstring(GetCommandLineW()).find(L"--selftest") != std::wstring::npos) {
         Save();
         CoUninitialize();

@@ -1,4 +1,4 @@
-# build
+﻿# build
 /out/
 /build/
 *.zip
@@ -20,6 +20,12 @@
 *.xbe
 *.wad*
 XBoxWad.idx
+
+# the player's own launcher backdrop: never commit artwork
+background.*
+launcher-bg.*
+bg.png
+bg.jpg
 
 # runtime files
 settings.toml

@@ -1,4 +1,4 @@
-# Contributing
+﻿# Contributing
 
 ## Ground rules
 
@@ -7,6 +7,7 @@ This project ships no game code and no game data. Do not commit:
 - `assets/` contents: ISOs, `default.xbe`, `*.wad*`, `audio/`, `bik/`
 - `generated/`: the recompiled game code, which is a derivative of the game's binary
 - `TheWarriors.dll`, crash dumps, logs, saves, `settings.toml`
+- `background.*`, `launcher-bg.*`: launcher artwork. The launcher falls back to a backdrop drawn in code.
 
 `.gitignore` already covers all of these. If a change needs a test with the real game, describe how you tested it in
 the pull request instead of attaching files.
